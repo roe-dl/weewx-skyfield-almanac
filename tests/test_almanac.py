@@ -36,7 +36,7 @@ CONFIG = configobj.ConfigObj({
 
 default_formatter = weewx.units.get_default_formatter()
 
-srv = skyfieldalmanac.AlmanacService(None,CONFIG)
+srv = skyfieldalmanac.SkyfieldService(None,CONFIG)
 del weewx.almanac.almanacs[-1]
 print(weewx.almanac.almanacs)
 
@@ -92,7 +92,7 @@ alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=
 
 #print(str(alm.sunrise))
 #print(alm.sunset)
-print(alm.venus.rise)
+print(alm.sun.altitude,alm.sun.azimuth,alm.sun.alt,alm.sun.az)
 
 if __name__ == '__main__':
     unittest.main()

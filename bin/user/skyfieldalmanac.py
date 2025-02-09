@@ -106,7 +106,7 @@ class SkyfieldAlmanacType(AlmanacType):
     def get_almanac_data(self, almanac_obj, attr):
         """ calculate attribute """
         if ts is None or eph is None:
-            raise weewx.UnknownType
+            raise weewx.UnknownType(attr)
         time_ti = timestamp_to_skyfield_time(almanac_obj.time_ts)
         if attr=='sunrise':
             return almanac_obj.sun.rise
@@ -152,7 +152,7 @@ class SkyfieldAlmanacType(AlmanacType):
                 x = attr[5:]
             # get the Skyfield event codes
             event = SkyfieldAlmanacType.EVENTS.get(x)
-            if event is None: raise weewx.UnknownType
+            if event is None: raise weewx.UnknownType(attr)
             # time interval to look for events
             t0 = timestamp_to_skyfield_time(almanac_obj.time_ts+t0)
             t1 = timestamp_to_skyfield_time(almanac_obj.time_ts+t1)
@@ -193,7 +193,7 @@ class SkyfieldAlmanacType(AlmanacType):
             # AlmanacBinder
             return SkyfieldAlmanacBinder(almanac_obj, attr)
         # `attr` is not provided by this extension. So raise an exception.
-        raise weewx.UnknownType
+        raise weewx.UnknownType(attr)
 
 
 class SkyfieldAlmanacBinder:
@@ -207,7 +207,7 @@ class SkyfieldAlmanacBinder:
         y, m, d = time.localtime(self.almanac.time_ts)[0:3]
         #self.sod_djd = timestamp_to_djd(time.mktime((y, m, d, 0, 0, 0, 0, 0, -1))
 
-        self.heavenly_body = eph[heavenly_body]
+        self.heavenly_body = heavenly_body
         self.use_center = False
 
     def __call__(self, use_center=False):
@@ -223,6 +223,7 @@ class SkyfieldAlmanacBinder:
             raise AttributeError(attr)
         
         observer, refr = _get_observer(self.almanac,self.almanac.time_ts)
+        body = eph[self.heavenly_body]
         
         previous = attr.startswith('previous_')
         next = attr.startswith('next_')
@@ -246,34 +247,44 @@ class SkyfieldAlmanacBinder:
         else:
             # convert given timestamp
             ti = timestamp_to_skyfield_time(self.almanac.time_ts)
-            position = observer.at(ti).observe(self.heavenly_body).apparent()
+            position = observer.at(ti).observe(body).apparent()
             if attr=='moon_fullness':
                 return position.fraction_illuminated(eph['sun'])*100.0
-            if attr in ('az','alt'):
-                az, alt = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)
+            if attr in ('az','alt','azimuth','altitude'):
+                alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)
                 if attr=='az':
-                    return az
+                    return az.degrees
+                elif attr=='alt':
+                    return alt.degrees
                 else:
-                    return alt
+                    if attr=='azimuth':
+                        vt = ValueTuple(az.degrees,'degree_compass','group_direction')
+                    elif attr=='altitude':
+                        vt = ValueTuple(alt.radians,'radian','group_angle')
+                    return ValueHelper(vt,
+                                               context="ephem_day",
+                                               formatter=self.almanac.formatter,
+                                               converter=self.almanac.converter)
+
             # `attr` is not provided by this extension. So raise an exception.
-            raise weewx.UnknownType
+            raise weewx.UnknownType("%s.%s" % (self.heavenly_body,attr))
 
         # Note: In case of polar day or night, y is False and t is the time
         #       of transit or antitransit.
         
         t = None
         if evt in ('rise','rising'):
-            t, y = almanac.find_risings(observer, self.heavenly_body, t0, t1, horizon_degrees=-refr)
+            t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=-refr)
         elif evt in ('set','setting'):
-            t, y = almanac.find_settings(observer, self.heavenly_body, t0, t1, horizon_degrees=-refr)
+            t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=-refr)
         elif evt=='transit':
-            t = almanac.find_transits(observer, self.heavenly_body, t0, t1)
+            t = almanac.find_transits(observer, body, t0, t1)
             y = True
         elif evt=='antitransit':
-            raise weewx.UnknownType
+            raise weewx.UnknownType("%s.%s" % (self.heavenly_body,attr))
         else:
             # `attr` is not provided by this extension. So raise an exception.
-            raise weewx.UnknownType
+            raise weewx.UnknownType(attr)
         if t is not None:
             time_djd = skyfield_time_to_djd(t[-1]) if len(t)>=1 and y else None
             return weewx.units.ValueHelper(ValueTuple(time_djd, "dublin_jd", "group_time"),
@@ -327,7 +338,7 @@ class SkyfieldAlmanacThread(threading.Thread):
         eph = load(self.eph_file)
 
 
-class AlmanacService(StdService):
+class SkyfieldService(StdService):
     """ Service to initialize the Skyfield almanac extension """
 
     def __init__(self, engine, config_dict):

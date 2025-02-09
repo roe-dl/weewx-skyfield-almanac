@@ -11,7 +11,7 @@ class SkyfieldInstaller(ExtensionInstaller):
     def __init__(self):
         super(SkyfieldInstaller, self).__init__(
             version="0.1",
-            name='EasterExample',
+            name='Skyfield almanac',
             description='almanac extension using Skyfield mdule',
             author="Johanna Roedenbeck",
             author_email="",
