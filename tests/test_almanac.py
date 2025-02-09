@@ -71,6 +71,11 @@ class AlmanacTest(unittest.TestCase):
         self.assertEqual(str(self.alm.next_summer_solstice),'06/21/25 04:42:15')
         self.assertEqual(str(self.alm.next_winter_solstice),'12/21/25 16:03:05')
         self.assertEqual(str(self.alm.previous_winter_solstice),'12/21/24 10:20:34')
+        
+        self.assertEqual(str(self.alm.sun.altitude),'24°')
+        self.assertEqual(str(self.alm.sun.azimuth),'174°')
+        self.assertAlmostEqual(self.alm.sun.alt,24.220897454265796,2)
+        self.assertAlmostEqual(self.alm.sun.az,174.1585381089835,2)
     
     def test_moon(self):
         self.assertEqual(alm.moon_phase,'waxing gibbous (increasing to full)')
@@ -92,7 +97,9 @@ alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=
 
 #print(str(alm.sunrise))
 #print(alm.sunset)
-print(alm.sun.altitude,alm.sun.azimuth,alm.sun.alt,alm.sun.az)
+#print(alm.sun.altitude,alm.sun.azimuth,alm.sun.alt,alm.sun.az)
+print(alm.sun.visible)
+print(alm.sun.visible_change())
 
 if __name__ == '__main__':
     unittest.main()

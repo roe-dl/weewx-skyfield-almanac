@@ -15,13 +15,13 @@ Install Skyfield
 
 2) run the installer
 
-   WeeWX from version 5.0 on and WeeWX packet installation
+   WeeWX from version 5.1 on and WeeWX packet installation
 
    ```shell
    sudo weectl extension install weewx-skyfield-almanac.zip
    ```
 
-   WeeWX from version 5.0 on and WeeWX pip installation into an virtual environment
+   WeeWX from version 5.1 on and WeeWX pip installation into an virtual environment
 
    ```shell
    source ~/weewx-venv/bin/activate

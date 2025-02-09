@@ -213,6 +213,47 @@ class SkyfieldAlmanacBinder:
     def __call__(self, use_center=False):
         self.use_center = use_center
         return self
+    
+    @property
+    def visible(self):
+        """Calculate how long the body has been visible today"""
+        observer, refr = _get_observer(self.almanac,self.almanac.time_ts)
+        body = eph[self.heavenly_body]
+        timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
+        t0 = timestamp_to_skyfield_time(timespan[0])
+        t1 = timestamp_to_skyfield_time(timespan[1])
+        tr, yr = almanac.find_risings(observer, body, t0, t1, horizon_degrees=-refr)
+        ts, ys = almanac.find_settings(observer, body, t0, t1, horizon_degrees=-refr)
+        if len(tr)<1 or len(ts)<1:
+            visible = None
+        elif yr[-1] and ys[-1]:
+            visible = (ts.ut1-tr.ut1) * weewx.units.SECS_PER_DAY
+        else:
+            #TODO always up and always down
+            visible = 0
+        return weewx.units.ValueHelper(ValueTuple(visible, "second", "group_deltatime"),
+                                       context="day",
+                                       formatter=self.almanac.formatter,
+                                       converter=self.almanac.converter)
+        
+    def visible_change(self, days_ago=1):
+        """Change in visibility of the heavenly body compared to 'days_ago'.
+           Copyright (C) Tom Keffer
+        """
+        # Visibility for today:
+        today_visible = self.visible
+        # The time to compare to
+        then_time = self.almanac.time_ts - days_ago * 86400
+        # Get a new almanac, set up for the time back then
+        then_almanac = self.almanac(almanac_time=then_time)
+        # Find the visibility back then
+        then_visible = getattr(then_almanac, self.heavenly_body).visible
+        # Take the difference
+        diff = today_visible.raw - then_visible.raw
+        return weewx.units.ValueHelper(ValueTuple(diff, "second", "group_deltatime"),
+                                       context="hour",
+                                       formatter=self.almanac.formatter,
+                                       converter=self.almanac.converter)
 
     def __getattr__(self, attr):
         """Get the requested observation, such as when the body will rise."""
