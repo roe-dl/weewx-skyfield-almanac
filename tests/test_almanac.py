@@ -17,6 +17,8 @@ import weewx.almanac
 import weewx.units
 import skyfieldalmanac
 
+from skyfield.earthlib import refraction, refract
+
 LATITUDE = 51.123
 LONGITUDE = 13.040
 ALTITUDE = 169
@@ -90,16 +92,24 @@ class AlmanacTest(unittest.TestCase):
         self.assertEqual(str(alm.next_last_quarter_moon),'02/20/25 18:32:32')
     
     def test_exceptions(self):
-        with self.assertRaises(weewx.UnknownType):
+        with self.assertRaises(AttributeError):
             self.alm.sun.foo
+        with self.assertRaises(AttributeError):
+            self.alm.foo.rise
         
 alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=TEMPERATURE_C,pressure=PRESSURE_MBAR,horizon=0.0,formatter=default_formatter)
 
 #print(str(alm.sunrise))
 #print(alm.sunset)
 #print(alm.sun.altitude,alm.sun.azimuth,alm.sun.alt,alm.sun.az)
-print(alm.sun.visible)
-print(alm.sun.visible_change())
+#print(alm.sun.visible)
+#print(alm.sun.visible_change())
+observer, horizon, refr = skyfieldalmanac._get_observer(alm,TIME_TS)
+print('observer:',observer)
+print('horizon:',horizon)
+print('refr:',refr)
+print(refract(-refr,15.0,1013.25),refract(6.0,15.0,1013.25),refract(-6.0,15.0,1013.25))
+print(skyfieldalmanac.eph)
 
 if __name__ == '__main__':
     unittest.main()

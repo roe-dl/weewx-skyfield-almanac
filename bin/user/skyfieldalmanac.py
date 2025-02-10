@@ -42,6 +42,15 @@
         # update interval 1 year (set to 0 for no update)
         update_interval = 31557600
     
+    Attributes of `almanac_obj`:
+    
+    lat(float):         latitude in degrees
+    lon(float):         longitude in degrees
+    altitude(float):    altitude of the location in **meters**
+    temperature(float): temperature in **degrees Celsius**
+    pressure(float):    pressure in **mbar**
+    horizon(float):     horizon in degrees
+    
 """
 
 VERSION = "0.1"
@@ -66,24 +75,46 @@ eph = None
 
 
 def timestamp_to_skyfield_time(timestamp):
+    """ convert Unix timestamp to Skyfield Time
+    
+        See https://github.com/skyfielders/python-skyfield/discussions/1027
+        for why the timestamp is divided and added to the day of month
+        instead of using the `second` parameter of `ts.utc`.
+        
+        Args:
+            timestamp(int, float): Unix timestamp
+        
+        Returns:
+            skyfield.units.Time: the same timestamp converted
+    """
     return ts.utc(1970,1,1+timestamp/86400.0)
 
 def skyfield_time_to_djd(ti):
+    """ convert Skyfield timestamp to Dublin Julian Date
+    
+        Args:
+            ti(skyfield.units.Time): timestamp to convert
+        
+        Returns:
+            float: the same timestamp as Dublin Julian Date
+    """
     return ti.ut1-ti.dut1/86400.0-2415020.0
 
 def _get_observer(almanac_obj, time_ts):
     # Build an ephem Observer object
+    # a location on earth surface
     observer = eph['Earth'] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
+    # calculate refraction angle
     refr = refraction(
         almanac_obj.horizon,
         temperature_C=almanac_obj.temperature,
         pressure_mbar=almanac_obj.pressure
     )
-    return observer, refr
+    return observer, almanac_obj.horizon-refr, refr
 
 
 class SkyfieldAlmanacType(AlmanacType):
-    """ Almanac extension to provide the date of the Easter sunday """
+    """ Almanac extension to use the Skyfield module for almanac computation """
     
     EVENTS = {
         'vernal_equinox':(0,),
@@ -100,7 +131,7 @@ class SkyfieldAlmanacType(AlmanacType):
 
     @property
     def hasExtras(self):
-        """ PyEphem provides extras. """
+        """ Skyfield provides extras. """
         return True
 
     def get_almanac_data(self, almanac_obj, attr):
@@ -129,8 +160,6 @@ class SkyfieldAlmanacType(AlmanacType):
                       'previous_first_quarter_moon', 'next_first_quarter_moon',
                       'previous_full_moon', 'next_full_moon',
                       'previous_last_quarter_moon', 'next_last_quarter_moon'}:
-            # This is how you call a function on an instance when all you have
-            # is the function's name as a string
             previous = attr.startswith('previous')
             if attr.endswith('_moon'):
                 # moon phases
@@ -187,10 +216,10 @@ class SkyfieldAlmanacType(AlmanacType):
                                                context = 'ephem_day',
                                                formatter=almanac_obj.formatter,
                                                converter=almanac_obj.converter)
-        else:
-            # The attribute must be a heavenly body (such as 'sun', or 'jupiter').
+        elif attr in eph:
+            # The attribute is a heavenly body (such as 'sun', or 'jupiter').
             # Bind the almanac and the heavenly body together and return as an
-            # AlmanacBinder
+            # SkyfieldAlmanacBinder
             return SkyfieldAlmanacBinder(almanac_obj, attr)
         # `attr` is not provided by this extension. So raise an exception.
         raise weewx.UnknownType(attr)
@@ -217,7 +246,7 @@ class SkyfieldAlmanacBinder:
     @property
     def visible(self):
         """Calculate how long the body has been visible today"""
-        observer, refr = _get_observer(self.almanac,self.almanac.time_ts)
+        observer, _, refr = _get_observer(self.almanac,self.almanac.time_ts)
         body = eph[self.heavenly_body]
         timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
         t0 = timestamp_to_skyfield_time(timespan[0])
@@ -285,7 +314,7 @@ class SkyfieldAlmanacBinder:
                                                formatter=self.almanac.formatter,
                                                converter=self.almanac.converter)
         
-        observer, refr = _get_observer(self.almanac,self.almanac.time_ts)
+        observer, horizon, refr = _get_observer(self.almanac,self.almanac.time_ts)
 
         previous = attr.startswith('previous_')
         next = attr.startswith('next_')
@@ -327,6 +356,25 @@ class SkyfieldAlmanacBinder:
                                                context="ephem_day",
                                                formatter=self.almanac.formatter,
                                                converter=self.almanac.converter)
+            if attr in ('ha','ha_dec','hour_angle','ha_declination'):
+                # measured from the plane of the Earth's physical geographic
+                # equator. The coordinates are not adjusted for atmospheric
+                # refraction near the horizon.
+                # https://rhodesmill.org/skyfield/api-position.html#skyfield.positionlib.ICRF.hadec
+                ha, dec, distance = position.hadec()
+                if attr=='ha':
+                    return ha.degrees
+                elif attr=='ha_dec':
+                    return dec.degrees
+                else:
+                    if attr=='hour_angle':
+                        vt = ValueTuple(ha.degrees,'degree_compass','group_direction')
+                    else:
+                        vt = ValueTuple(dec.radians,'radian','group_angle')
+                    return ValueHelper(vt,
+                                               context="ephem_day",
+                                               formatter=self.almanac.formatter,
+                                               converter=self.almanac.converter)
 
             # `attr` is not provided by this extension. So raise an exception.
             raise AttributeError("%s.%s" % (self.heavenly_body,attr))
@@ -336,9 +384,9 @@ class SkyfieldAlmanacBinder:
         
         t = None
         if evt in ('rise','rising'):
-            t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=-refr)
+            t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
         elif evt in ('set','setting'):
-            t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=-refr)
+            t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
         elif evt=='transit':
             t = almanac.find_transits(observer, body, t0, t1)
             y = True
