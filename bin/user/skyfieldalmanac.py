@@ -263,9 +263,30 @@ class SkyfieldAlmanacBinder:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
             raise AttributeError(attr)
         
-        observer, refr = _get_observer(self.almanac,self.almanac.time_ts)
         body = eph[self.heavenly_body]
         
+        if attr in ('astro_ra','astro_dec','a_ra','a_dec',
+                    'geo_ra','geo_dec','g_ra','g_dec'):
+            t = timestamp_to_skyfield_time(self.almanac.time_ts)
+            astrometric = eph['Earth'].at(t).observe(body)
+            if attr in ('geo_ra','geo_dec','g_ra','g_dec'):
+                astrometric = astrometric.apparent()
+            ra, dec, distance = astrometric.radec(epoch='date')
+            if attr in ('a_ra','g_ra'):
+                return ra.degrees
+            elif attr in ('a_dec','g_dec'):
+                return dec.degrees
+            if attr in ('astro_ra','geo_ra'):
+                vt = ValueTuple(ra.degrees,'degree_compass','group_direction')
+            else:
+                vt = ValueTuple(dec.radians,'radian','group_angle')
+            return ValueHelper(vt,
+                                               context="ephem_day",
+                                               formatter=self.almanac.formatter,
+                                               converter=self.almanac.converter)
+        
+        observer, refr = _get_observer(self.almanac,self.almanac.time_ts)
+
         previous = attr.startswith('previous_')
         next = attr.startswith('next_')
         
@@ -308,7 +329,7 @@ class SkyfieldAlmanacBinder:
                                                converter=self.almanac.converter)
 
             # `attr` is not provided by this extension. So raise an exception.
-            raise weewx.UnknownType("%s.%s" % (self.heavenly_body,attr))
+            raise AttributeError("%s.%s" % (self.heavenly_body,attr))
 
         # Note: In case of polar day or night, y is False and t is the time
         #       of transit or antitransit.
@@ -322,10 +343,10 @@ class SkyfieldAlmanacBinder:
             t = almanac.find_transits(observer, body, t0, t1)
             y = True
         elif evt=='antitransit':
-            raise weewx.UnknownType("%s.%s" % (self.heavenly_body,attr))
+            raise AttributeError("%s.%s" % (self.heavenly_body,attr))
         else:
             # `attr` is not provided by this extension. So raise an exception.
-            raise weewx.UnknownType(attr)
+            raise AttributeError("%s.%s" % (self.heavenly_body,attr))
         if t is not None:
             time_djd = skyfield_time_to_djd(t[-1]) if len(t)>=1 and y else None
             return weewx.units.ValueHelper(ValueTuple(time_djd, "dublin_jd", "group_time"),
