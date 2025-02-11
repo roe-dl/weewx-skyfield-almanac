@@ -314,23 +314,27 @@ class SkyfieldAlmanacBinder:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
             raise AttributeError(attr)
         
-        body = eph[self.heavenly_body]
+        body = eph[self.heavenly_body.replace('_',' ')]
         
-        if attr in ('astro_ra','astro_dec','a_ra','a_dec',
-                    'geo_ra','geo_dec','g_ra','g_dec'):
+        if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
+                    'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             astrometric = eph['Earth'].at(t).observe(body)
-            if attr in ('geo_ra','geo_dec','g_ra','g_dec'):
+            if attr in ('geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
                 astrometric = astrometric.apparent()
             ra, dec, distance = astrometric.radec(epoch='date')
             if attr in ('a_ra','g_ra'):
                 return ra.degrees
             elif attr in ('a_dec','g_dec'):
                 return dec.degrees
+            elif attr in ('a_dist','g_dist'):
+                return distance.km
             if attr in ('astro_ra','geo_ra'):
                 vt = ValueTuple(ra.degrees,'degree_compass','group_direction')
-            else:
+            elif attr in ('astro_dec','geo_dec'):
                 vt = ValueTuple(dec.radians,'radian','group_angle')
+            else:
+                vt = ValueTuple(distance.km,'km','group_distance')
             return ValueHelper(vt,
                                                context="ephem_day",
                                                formatter=self.almanac.formatter,
@@ -378,7 +382,27 @@ class SkyfieldAlmanacBinder:
                                                context="ephem_day",
                                                formatter=self.almanac.formatter,
                                                converter=self.almanac.converter)
-            if attr in ('ha','ha_dec','hour_angle','ha_declination'):
+            if attr in ('ra','dec','dist','topo_ra','topo_dec','topo_dist'):
+                ra, dec, distance = position.radec('date')
+                if attr=='ra':
+                    return ra._degrees
+                elif attr=='dec':
+                    return dec.degrees
+                elif attr=='dist':
+                    return distance.km
+                else:
+                    if attr=='topo_ra':
+                        vt = ValueTuple(ra._degrees,'degree_compass','group_direction')
+                    elif attr=='topo_dec':
+                        vt = ValueTuple(dec.radians,'radian','group_angle')
+                    elif attr=='topo_dist':
+                        vt = ValueTuple(distance.km,'km','group_distance')
+                    return ValueHelper(vt,
+                                               context="ephem_day",
+                                               formatter=self.almanac.formatter,
+                                               converter=self.almanac.converter)
+            if attr in ('ha','ha_dec','ha_dist',
+                        'hour_angle','ha_declination','ha_distance'):
                 # measured from the plane of the Earth's physical geographic
                 # equator. The coordinates are not adjusted for atmospheric
                 # refraction near the horizon.
@@ -388,11 +412,15 @@ class SkyfieldAlmanacBinder:
                     return ha.degrees
                 elif attr=='ha_dec':
                     return dec.degrees
+                elif attr=='ha_dist':
+                    return distance.km
                 else:
                     if attr=='hour_angle':
                         vt = ValueTuple(ha.degrees,'degree_compass','group_direction')
-                    else:
+                    elif attr=='ha_declination':
                         vt = ValueTuple(dec.radians,'radian','group_angle')
+                    else:
+                        vt = ValueTuple(distance.km,'km','group_distance')
                     return ValueHelper(vt,
                                                context="ephem_day",
                                                formatter=self.almanac.formatter,
