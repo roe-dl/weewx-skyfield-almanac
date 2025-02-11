@@ -131,8 +131,14 @@ class SkyfieldAlmanacType(AlmanacType):
 
     @property
     def hasExtras(self):
-        """ Skyfield provides extras. """
-        return True
+        """ Skyfield provides extras. 
+        
+            Depending on the ephemeris file chosen, Skyfield takes some time
+            to initialize after the start of WeeWX. Initialization is 
+            finished when `eph` is not `None` any more.
+        
+        """
+        return eph is not None
 
     def get_almanac_data(self, almanac_obj, attr):
         """ calculate attribute """
@@ -443,9 +449,11 @@ class SkyfieldAlmanacThread(threading.Thread):
         # instanciate the loader
         load = Loader(self.path,verbose=False)
         # load timescale
-        ts = load.timescale(builtin=self.builtin)
+        _ts = load.timescale(builtin=self.builtin)
+        if _ts: ts = _ts
         # load ephemeris
-        eph = load(self.eph_file)
+        _eph = load(self.eph_file)
+        if _eph: eph = _eph
 
 
 class SkyfieldService(StdService):
