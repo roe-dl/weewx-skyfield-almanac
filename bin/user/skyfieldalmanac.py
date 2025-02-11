@@ -70,8 +70,24 @@ from skyfield import almanac
 from skyfield.api import N, S, E, W, Loader, wgs84
 from skyfield.earthlib import refraction
 
+
 ts = None
 eph = None
+
+
+# Logging
+import weeutil.logger
+import logging
+log = logging.getLogger("user.skyfieldalmanac")
+
+def logdbg(msg):
+    log.debug(msg)
+
+def loginf(msg):
+    log.info(msg)
+
+def logerr(msg):
+    log.error(msg)
 
 
 def timestamp_to_skyfield_time(timestamp):
@@ -409,8 +425,16 @@ class SkyfieldAlmanacBinder:
                                            converter=self.almanac.converter)
 
 
-class SkyfieldAlmanacThread(threading.Thread):
-    """ Thread to download and update ephemeris """
+class SkyfieldMaintenanceThread(threading.Thread):
+    """ Thread to download and update ephemeris and timescales 
+    
+        If initializing Skyfield requires downloading files, this can take
+        too long to do it during WeeWX initialization. So it is put into
+        a separate thread.
+        
+        Ephemeris and timescale files are updated from time to time. This
+        thread re-downloads them at a given interval if configured to do so.
+    """
     
     def __init__(self, alm_conf_dict, path):
         """ init thread
@@ -419,64 +443,101 @@ class SkyfieldAlmanacThread(threading.Thread):
                 alm_conf_dict(configobj): almanac configuration
                 path(str): directory where to save downloaded files
         """
-        super(SkyfieldAlmanacThread,self).__init__(name='SkyfieldThread')
+        super(SkyfieldMaintenanceThread,self).__init__(name='SkyfieldMaintenanceThread')
         self.path = path
+        logdbg("path to save Skyfield files: '%s'" % self.path)
         self.eph_file = alm_conf_dict.get('ephemeris','de440s.bsp')
         self.builtin = weeutil.weeutil.to_bool(alm_conf_dict.get('use_builtin_timescale',True))
         self.update_interval = weeutil.weeutil.to_int(alm_conf_dict.get('update_interval',31557600))
+        if self.update_interval:
+            self.update_interval = max(self.update_interval,86400)
+        loginf("ephemeris file: '%s', timescale: %s, update interval: %.2f days" % (self.eph_file,'builtin' if self.builtin else 'IERS file',self.update_interval/86400.0))
         self.evt = threading.Event()
         self.running = True
+        self.last_ts_update = 0
+        self.last_eph_update = 0
+        logdbg("thread '%s': initialized" % self.name)
     
     def shutDown(self):
         """ shut down thread """
         self.running = False
         self.evt.set()
+        loginf("thread '%s': shutdown requested" % self.name)
     
     def run(self):
-        """ """
+        """ Skyfield database maintenance """
+        loginf("thread '%s': starting" % (self.name,))
         try:
             while self.running:
-                self.init_skyfield()
+                # initialize Skyfield or update its database
+                success = self.init_skyfield()
+                logdbg("thread '%s': Initialization/update was%s successful." % (self.name,'' if success else ' not'))
+                # If no updating is required, the thread can be closed now.
                 if not self.update_interval: break
-                self.evt.wait(self.update_interval)
+                # Wait for the update interval to pass.
+                self.evt.wait(self.update_interval if success else 300)
         except Exception as e:
-            print(e)
-            pass
+            logerr("thread '%s': %s - %s" % (self.name,e.__class__.__name__,e))
+        finally:
+            loginf("thread '%s': stopped" % self.name)
 
     def init_skyfield(self):
         """ download ephemeris data or read them from file """
         global ts, eph
-        # instanciate the loader
+        # instantiate the loader
         load = Loader(self.path,verbose=False)
         # load timescale
         _ts = load.timescale(builtin=self.builtin)
-        if _ts: ts = _ts
+        if _ts: 
+            ts = _ts
+            self.last_ts_update = time.time()
+            loginf("thread '%s': timescale initialized or updated" % self.name)
         # load ephemeris
         _eph = load(self.eph_file)
-        if _eph: eph = _eph
+        if _eph: 
+            eph = _eph
+            self.last_eph_upate = time.time()
+            loginf("thread '%s': ephemeris initialized or updated" % self.name)
+        # `eph` and `ts` are up to date if they were updated less than 24 
+        # hours ago.
+        now = time.time()-86400
+        return self.last_ts_update>now and self.last_eph_update>now
 
 
 class SkyfieldService(StdService):
     """ Service to initialize the Skyfield almanac extension """
 
     def __init__(self, engine, config_dict):
+        """ init this extension """
         global almanacs
+        super(SkyfieldService,self).__init__(engine, config_dict)
+        # directory to save ephemeris and IERS files
         self.path = config_dict.get('DatabaseTypes',configobj.ConfigObj()).get('SQLite',configobj.ConfigObj()).get('SQLITE_ROOT','.')
+        # configuration
         alm_conf_dict = config_dict.get('Almanac',configobj.ConfigObj())
         # thread to initialize Skyfield
-        self.skyfield_thread = SkyfieldAlmanacThread(alm_conf_dict,self.path)
+        self.skyfield_thread = SkyfieldMaintenanceThread(alm_conf_dict,self.path)
         self.skyfield_thread.start()
         # instantiate the Skyfield almanac
         self.skyfield_almanac = SkyfieldAlmanacType()
         # add to the list of almanacs
         almanacs.insert(0,self.skyfield_almanac)
+        logdbg("%s started" % self.__class__.__name__)
     
     def shutDown(self):
+        """ remove this extension from the almanacs list and shut down the
+            maintenance thread
+        """
         global almanacs
-        # find the Skyfield almanac in the list of almanac
+        # find the Skyfield almanac in the list of almanacs
         idx = almanacs.index(self.skyfield_almanac)
         # remove it from the list
         del almanacs[idx]
         # stop thread
         if self.skyfield_thread.is_alive():
             self.skyfield_thread.shutDown()
+        logdbg("%s stopped" % self.__class__.__name__)
+
+
+# log version info at startup
+loginf("%s version %s" % ("Skyfield almanac extension",VERSION))
