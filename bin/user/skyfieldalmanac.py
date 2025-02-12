@@ -324,13 +324,13 @@ class SkyfieldAlmanacBinder:
                 astrometric = astrometric.apparent()
             ra, dec, distance = astrometric.radec(epoch='date')
             if attr in ('a_ra','g_ra'):
-                return ra.degrees
+                return ra._degrees
             elif attr in ('a_dec','g_dec'):
                 return dec.degrees
             elif attr in ('a_dist','g_dist'):
                 return distance.km
             if attr in ('astro_ra','geo_ra'):
-                vt = ValueTuple(ra.degrees,'degree_compass','group_direction')
+                vt = ValueTuple(ra._degrees,'degree_compass','group_direction')
             elif attr in ('astro_dec','geo_dec'):
                 vt = ValueTuple(dec.radians,'radian','group_angle')
             else:
@@ -367,17 +367,21 @@ class SkyfieldAlmanacBinder:
             position = observer.at(ti).observe(body).apparent()
             if attr=='moon_fullness':
                 return position.fraction_illuminated(eph['sun'])*100.0
-            if attr in ('az','alt','azimuth','altitude'):
+            if attr in ('az','alt','alt_dist','azimuth','altitude','alt_distance'):
                 alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)
                 if attr=='az':
                     return az.degrees
                 elif attr=='alt':
                     return alt.degrees
+                elif attr=='alt_dist':
+                    return distance.km
                 else:
                     if attr=='azimuth':
                         vt = ValueTuple(az.degrees,'degree_compass','group_direction')
                     elif attr=='altitude':
                         vt = ValueTuple(alt.radians,'radian','group_angle')
+                    elif attr=='alt_distance':
+                        vt = ValueTuple(distance.km,'km','group_distance')
                     return ValueHelper(vt,
                                                context="ephem_day",
                                                formatter=self.almanac.formatter,
@@ -409,14 +413,14 @@ class SkyfieldAlmanacBinder:
                 # https://rhodesmill.org/skyfield/api-position.html#skyfield.positionlib.ICRF.hadec
                 ha, dec, distance = position.hadec()
                 if attr=='ha':
-                    return ha.degrees
+                    return ha._degrees
                 elif attr=='ha_dec':
                     return dec.degrees
                 elif attr=='ha_dist':
                     return distance.km
                 else:
                     if attr=='hour_angle':
-                        vt = ValueTuple(ha.degrees,'degree_compass','group_direction')
+                        vt = ValueTuple(ha._degrees,'degree_compass','group_direction')
                     elif attr=='ha_declination':
                         vt = ValueTuple(dec.radians,'radian','group_angle')
                     else:

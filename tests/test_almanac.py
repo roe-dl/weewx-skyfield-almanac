@@ -19,8 +19,8 @@ import skyfieldalmanac
 
 from skyfield.earthlib import refraction, refract
 
-LATITUDE = 51.123
-LONGITUDE = 13.040
+LATITUDE = 50.0
+LONGITUDE = 13.0
 ALTITUDE = 169
 TIME_TS = 1739098800
 TEMPERATURE_C = 15.0
@@ -54,18 +54,24 @@ class AlmanacTest(unittest.TestCase):
         self.alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=TEMPERATURE_C,pressure=PRESSURE_MBAR,horizon=0.0,formatter=default_formatter)
     
     def test_sidereal_time(self):
-        self.assertAlmostEqual(self.alm.sidereal_time,317.8321726967708,5)
+        self.assertAlmostEqual(self.alm.sidereal_time,317.79217269677076,5)
         self.assertEqual(str(self.alm.sidereal_angle),'318°')
     
+    def test_refraction(self):
+        observer, horizon, refr = skyfieldalmanac._get_observer(alm,TIME_TS)
+        self.assertAlmostEqual(horizon,-0.5660773571020249,3)
+        self.assertAlmostEqual(refr,0.5660773571020249,3)
+        self.assertAlmostEqual(refract(-refr,TEMPERATURE_C,PRESSURE_MBAR),0,3)
+        
     def test_sun(self):
         # Test backwards compatibility
-        self.assertEqual(str(self.alm.sunrise),'07:33:20')
-        self.assertEqual(str(self.alm.sunset),'17:11:23')
+        self.assertEqual(str(self.alm.sunrise),'07:30:34')
+        self.assertEqual(str(self.alm.sunset),'17:14:28')
         
         # Use Skyfield
-        self.assertEqual(str(self.alm.sun.rise),'07:33:20')
-        self.assertEqual(str(self.alm.sun.transit),'12:22:00')
-        self.assertEqual(str(self.alm.sun.set),'17:11:23')
+        self.assertEqual(str(self.alm.sun.rise),'07:30:34')
+        self.assertEqual(str(self.alm.sun.transit),'12:22:10')
+        self.assertEqual(str(self.alm.sun.set),'17:14:28')
         
         # Equinox / solstice
         self.assertEqual(str(self.alm.next_vernal_equinox),'03/20/25 10:01:28')
@@ -74,10 +80,45 @@ class AlmanacTest(unittest.TestCase):
         self.assertEqual(str(self.alm.next_winter_solstice),'12/21/25 16:03:05')
         self.assertEqual(str(self.alm.previous_winter_solstice),'12/21/24 10:20:34')
         
-        self.assertEqual(str(self.alm.sun.altitude),'24°')
+        # Altitude / azimuth
+        self.assertEqual(str(self.alm.sun.altitude),'25°')
         self.assertEqual(str(self.alm.sun.azimuth),'174°')
-        self.assertAlmostEqual(self.alm.sun.alt,24.220897454265796,2)
-        self.assertAlmostEqual(self.alm.sun.az,174.1585381089835,2)
+        self.assertEqual(str(self.alm.sun.alt_distance),'91714331.2 miles')
+        self.assertAlmostEqual(self.alm.sun.alt,25.333616717531466,2)
+        self.assertAlmostEqual(self.alm.sun.az,174.0628847017934,2)
+        self.assertAlmostEqual(self.alm.sun.alt_dist,147599908.7,0)
+        
+        # Topocentric right ascension / declination / distance
+        self.assertAlmostEqual(self.alm.sun.ra,323.33557380612825,3)
+        self.assertAlmostEqual(self.alm.sun.dec,-14.516113980648846,3)
+        self.assertAlmostEqual(self.alm.sun.dist,147599908.7,0)
+        self.assertEqual(str(self.alm.sun.topo_ra),'323°')
+        self.assertEqual(str(self.alm.sun.topo_dec),'-15°')
+        self.assertEqual(str(self.alm.sun.topo_dist),'91714331.2 miles')
+        
+        # Hour angle / declination / distance
+        self.assertAlmostEqual(self.alm.sun.ha,-5.5434011060793855,3)
+        self.assertAlmostEqual(self.alm.sun.ha_dec,-14.516113980648846,3)
+        self.assertAlmostEqual(self.alm.sun.ha_dist,147599908.7,0)
+        self.assertEqual(str(self.alm.sun.hour_angle),'-06°')
+        self.assertEqual(str(self.alm.sun.ha_declination),'-15°')
+        self.assertEqual(str(self.alm.sun.ha_distance),'91714331.2 miles')
+        
+        # Astrometric right ascension / declination / distance
+        self.assertAlmostEqual(self.alm.sun.a_ra,323.34100033196574,3)
+        self.assertAlmostEqual(self.alm.sun.a_dec,-14.512050426594605,3)
+        self.assertAlmostEqual(self.alm.sun.a_dist,147602648.27668718,0)
+        self.assertEqual(str(self.alm.sun.astro_ra),'323°')
+        self.assertEqual(str(self.alm.sun.astro_dec),'-15°')
+        self.assertEqual(str(self.alm.sun.astro_dist),'91716033.5 miles')
+        
+        # Apparent astrometric right ascension / declination / distance
+        self.assertAlmostEqual(self.alm.sun.g_ra,323.33535575318166,3)
+        self.assertAlmostEqual(self.alm.sun.g_dec,-14.513890168137353,3)
+        self.assertAlmostEqual(self.alm.sun.g_dist,147602648.27668718,0)
+        self.assertEqual(str(self.alm.sun.geo_ra),'323°')
+        self.assertEqual(str(self.alm.sun.geo_dec),'-15°')
+        self.assertEqual(str(self.alm.sun.geo_dist),'91716033.5 miles')
     
     def test_moon(self):
         self.assertEqual(alm.moon_phase,'waxing gibbous (increasing to full)')
@@ -104,12 +145,9 @@ alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=
 #print(alm.sun.altitude,alm.sun.azimuth,alm.sun.alt,alm.sun.az)
 #print(alm.sun.visible)
 #print(alm.sun.visible_change())
-observer, horizon, refr = skyfieldalmanac._get_observer(alm,TIME_TS)
-print('observer:',observer)
-print('horizon:',horizon)
-print('refr:',refr)
-print(refract(-refr,15.0,1013.25),refract(6.0,15.0,1013.25),refract(-6.0,15.0,1013.25))
+print(refract(6.0,15.0,1013.25),refract(-6.0,15.0,1013.25))
 print(skyfieldalmanac.eph)
+print(alm.sun.geo_dist)
 
 if __name__ == '__main__':
     unittest.main()

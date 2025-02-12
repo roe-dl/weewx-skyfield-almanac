@@ -81,6 +81,51 @@ available if you have special requirements.
 * `update_interval`: interval for updating ephemeris and timescale data
   (set to 0 to switch off updates)
 
+## Attributes
+
+See the WeeWX customization guide, section "The Cheetah generator",
+sub-section
+"[Almanac](http://weewx.com/docs/latest/custom/cheetah-generator/#almanac)",
+for a detailed description how to use the almanac in WeeWX.
+
+Once the weewx-skyfield-extension is installed and initialized after
+startup, `$almanac.hasExtras` becomes `True` and extended almanac
+information is available. Initialization can take several archive
+intervals to be completed at first run after installation, depending on 
+configuration.
+
+### Calendar events
+
+This extension provides the events described in the WeeWX customization 
+guide, but calculated using Skyfield. 
+
+### Heavenly bodies
+
+This extension provides the attributes described in the WeeWX customization 
+guide, but calculated using Skyfield. Additionally it provides some
+extra attributes, that are not available with PyEphem.
+
+WeeWX datatype | Pure float result | Meaning
+---------------|-------------------|----------------
+`astro_dist`   | `a_dist`          | astrometric geocentric distance
+`geo_dist`     | `g_dist`          | apparent astrometric geocentric distance
+`topo_dist`    | `dist`            | apparent topocentric distance 
+`alt_distance` | `alt_dist`        | distance in reference to the coordinate system of altitude and azimuth
+`hour angle`   | `ha`              | topocentric hour angle
+`ha_declination` | `ha_dec`        | declination in reference to the coordinate system of the hour angle
+`ha_distance`  | `ha_dist`         | distance in referenc to the coordinate system of the hour angle
+
+Depending on the ephemeris you chose you may be required to add
+`_barycenter` to the name of a heavenly body to get results
+(for example `jupiter_barycenter`).
+
+### PyEphem and Skyfield
+
+If you install both PyEphem and Skyfield, Skyfield is preferred. If the
+given heavenly body is available with Skyfield, the attribute is calculated
+using Skyfield. Otherwise PyEphem is tried. If neither Skyfield nor 
+PyEphem know about the body, an exception is raised.
+
 ## FAQ
 
 Q: I installed the Skyfield module, but no extended almanac values
