@@ -78,6 +78,14 @@ available if you have special requirements.
 * `use_builtin_timescale`: Use builtin timescale data or download them
   from IERS. See [UT1 and downloading IERS data](https://rhodesmill.org/skyfield/time.html#ut1-and-downloading-iers-data)
   for details.
+* `timescale_url`: URL to download the timescale file from (optional). 
+  There is a default URL hardcoded in Skyfield. Unfortunately the server
+  is temperorarily down. That's why you can specify an alternative
+  source here.
+* `log_ftp`: whether to log FTP responses of the server (optional).
+  If you specified an alternative source for the timescale file in 
+  `timescale_url` and that URL is at an FTP server, you can switch
+  on logging of the server responses in case of trouble.
 * `update_interval`: interval for updating ephemeris and timescale data
   (set to 0 to switch off updates)
 
@@ -88,7 +96,7 @@ sub-section
 "[Almanac](http://weewx.com/docs/latest/custom/cheetah-generator/#almanac)",
 for a detailed description how to use the almanac in WeeWX.
 
-Once the weewx-skyfield-extension is installed and initialized after
+Once the weewx-skyfield-almanac extension is installed and initialized after
 startup, `$almanac.hasExtras` becomes `True` and extended almanac
 information is available. Initialization can take several archive
 intervals to be completed at first run after installation, depending on 

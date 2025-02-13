@@ -20,6 +20,8 @@ class SkyfieldInstaller(ExtensionInstaller):
                 'Almanac': {
                     'ephemeris':'de440.bsp',
                     'use_builtin_timescale':'true',
+                    '#timescale_url':'ftps://gdc.cddis.eosdis.nasa.gov/products/iers/finals.all',
+                    '#log_ftp':'false',
                     'update_interval':'31557600'
                 }
             },

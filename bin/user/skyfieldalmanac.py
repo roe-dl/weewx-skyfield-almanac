@@ -39,8 +39,17 @@
         ephemeris = de440s.bsp  # or de440.bsp or de441.bsp
         # use builtin timescale data or download it from IERS
         use_builtin_timescale = true
+        # URL of the timescale file (optional)
+        timescale_url = '...'
+        # whether to log FTP responses (optional)
+        log_ftp = false
         # update interval 1 year (set to 0 for no update)
         update_interval = 31557600
+    
+    Skyfield downloads the timescale file finals2000A.all from a server that
+    is temporarily down. If you set `use_builtin_timescale` to `false` and
+    get permanent download errors, try another origin by setting
+    `timescale_url` to an appropriate URL.
     
     Attributes of `almanac_obj`:
     
@@ -55,10 +64,16 @@
 
 VERSION = "0.1"
 
+# IERS timescale file as hardcoded in Skyfield
+TIMESCALE_FILE = 'finals2000A.all'
+
 import time
 import datetime
 import configobj
 import threading
+import os
+import os.path
+from ftplib import FTP, FTP_TLS
 
 import weewx
 from weewx.almanac import AlmanacType, almanacs, timestamp_to_djd
@@ -69,7 +84,8 @@ import weeutil
 from skyfield import almanac
 from skyfield.api import N, S, E, W, Loader, wgs84
 from skyfield.earthlib import refraction
-
+from skyfield.data import iers
+from skyfield.constants import DAY_S
 
 ts = None
 eph = None
@@ -103,7 +119,7 @@ def timestamp_to_skyfield_time(timestamp):
         Returns:
             skyfield.units.Time: the same timestamp converted
     """
-    return ts.utc(1970,1,1+timestamp/86400.0)
+    return ts.utc(1970,1,1+timestamp/DAY_S)
 
 def skyfield_time_to_djd(ti):
     """ convert Skyfield timestamp to Dublin Julian Date
@@ -114,7 +130,7 @@ def skyfield_time_to_djd(ti):
         Returns:
             float: the same timestamp as Dublin Julian Date
     """
-    return ti.ut1-ti.dut1/86400.0-2415020.0
+    return ti.ut1-ti.dut1/DAY_S-2415020.0
 
 def _get_observer(almanac_obj, time_ts):
     # Build an ephem Observer object
@@ -483,7 +499,9 @@ class SkyfieldMaintenanceThread(threading.Thread):
         self.update_interval = weeutil.weeutil.to_int(alm_conf_dict.get('update_interval',31557600))
         if self.update_interval:
             self.update_interval = max(self.update_interval,86400)
-        loginf("ephemeris file: '%s', timescale: %s, update interval: %.2f days" % (self.eph_file,'builtin' if self.builtin else 'IERS file',self.update_interval/86400.0))
+        self.log_ftp = weeutil.weeutil.to_bool(alm_conf_dict.get('log_ftp',False))
+        self.ts_url = alm_conf_dict.get('timescale_url',None)
+        loginf("ephemeris file: '%s', timescale: %s, update interval: %.2f days" % (self.eph_file,'builtin' if self.builtin else 'IERS file',self.update_interval/DAY_S))
         self.evt = threading.Event()
         self.running = True
         self.last_ts_update = 0
@@ -518,23 +536,81 @@ class SkyfieldMaintenanceThread(threading.Thread):
         global ts, eph
         # instantiate the loader
         load = Loader(self.path,verbose=False)
+        # get current time
+        now = time.time()-86400
         # load timescale
-        _ts = load.timescale(builtin=self.builtin)
-        if _ts: 
-            ts = _ts
-            self.last_ts_update = time.time()
-            loginf("thread '%s': timescale initialized or updated" % self.name)
+        if self.last_ts_update<=now or ts is None:
+            try:
+                if not self.builtin and self.ts_url:
+                    # download timescale from a different location
+                    file = self.ftp_download(self.ts_url,'timescale.tmp')
+                    if file:
+                        os.rename(file,os.path.join(self.path,TIMESCALE_FILE))
+                _ts = load.timescale(builtin=self.builtin)
+                if _ts: 
+                    ts = _ts
+                    self.last_ts_update = time.time()
+                    loginf("thread '%s': timescale initialized or updated" % self.name)
+                if not self.builtin:
+                    url = load.build_url(TIMESCALE_FILE)
+                    with load.open(url) as f:
+                        finals_data = iers.parse_x_y_dut1_from_finals_all(f)
+                    iers.install_polar_motion_table(ts, finals_data)
+                    loginf("thread '%s': installed polar motion table" % self.name)
+            except OSError as e:
+                logerr("thread '%s': error downloading timescale %s - %s" % (self.name,e.__class__.__name__,e))
         # load ephemeris
-        _eph = load(self.eph_file)
-        if _eph: 
-            eph = _eph
-            self.last_eph_upate = time.time()
-            loginf("thread '%s': ephemeris initialized or updated" % self.name)
+        if self.last_eph_update<=now or eph is None:
+            try:
+                _eph = load(self.eph_file)
+                if _eph: 
+                    eph = _eph
+                    self.last_eph_update = time.time()
+                    loginf("thread '%s': ephemeris initialized or updated" % self.name)
+            except OSError as e:
+                logerr("thread '%s': error downloading ephemeris %s - %s" % (self.name,e.__class__.__name__,e))
         # `eph` and `ts` are up to date if they were updated less than 24 
         # hours ago.
-        now = time.time()-86400
         return self.last_ts_update>now and self.last_eph_update>now
-
+    
+    def ftp_download(self, url, filename=None):
+        """ Download from FTP server """
+        try:
+            # split URL
+            x = url.split(':')
+            protocol = x[0]
+            x = x[1].split('/')
+            if protocol.lower() not in ('ftp','ftps'): raise OSError('unvalid protocol')
+            if len(x)<4 or x[0]!='' or x[1]!='': raise OSError('invalid URL')
+            server = x[2]
+            path = '/'.join(x[3:])
+            logdbg("thread '%s': download protocol='%s', server='%s', path='%s'" % (self.name,protocol,server,path))
+            # target path
+            if filename is None: filename = x[-1]
+            filename = os.path.join(self.path, filename)
+            # open connection
+            if protocol=='ftps':
+                ftp = FTP_TLS(server)
+            else:
+                ftp = FTP(server)
+            # login
+            x = ftp.login()
+            if self.log_ftp: loginf(x)
+            # switch to private connection in case of FTPS
+            if protocol=='ftps':
+                x = ftp.prot_p()
+                if self.log_ftp: loginf(x)
+            # download
+            with open(filename,'wb') as f:
+                ftp.retrbinary('RETR %s' % path,f.write)
+            # close connection
+            x = ftp.quit()
+            if self.log_ftp: loginf(x)
+            return filename
+        except OSError as e:
+            logerr("thread '%s': FTP download %s - %s" % (self.name,e.__class__.__name__,e))
+            return None
+        
 
 class SkyfieldService(StdService):
     """ Service to initialize the Skyfield almanac extension """
