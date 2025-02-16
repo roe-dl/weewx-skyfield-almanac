@@ -39,7 +39,7 @@
         ephemeris = de440s.bsp  # or de440.bsp or de441.bsp
         # use builtin timescale data or download it from IERS
         use_builtin_timescale = true
-        # URL of the timescale file (optional)
+        # URL(s) of the timescale file (optional)
         timescale_url = '...'
         # whether to log FTP responses (optional)
         log_ftp = false
@@ -73,23 +73,30 @@ import configobj
 import threading
 import os
 import os.path
+import requests
 from ftplib import FTP, FTP_TLS
 
 import weewx
 from weewx.almanac import AlmanacType, almanacs, timestamp_to_djd
 from weewx.engine import StdService
-from weewx.units import ValueTuple, ValueHelper
+from weewx.units import ValueTuple, ValueHelper, std_groups, Formatter
 import weeutil
 
+# Import Skyfield modules
+import numpy
 from skyfield import almanac
 from skyfield.api import N, S, E, W, Loader, wgs84
 from skyfield.earthlib import refraction
 from skyfield.data import iers
 from skyfield.constants import DAY_S
 
+# Global variables
 ts = None
 eph = None
 
+# Unit group and unit used for true solar time and local mean time
+for _, unitgroup in std_groups.items():
+    unitgroup['group_localtime'] = 'local_djd'
 
 # Logging
 import weeutil.logger
@@ -254,6 +261,44 @@ class SkyfieldAlmanacType(AlmanacType):
                                                context = 'ephem_day',
                                                formatter=almanac_obj.formatter,
                                                converter=almanac_obj.converter)
+        elif attr=='solar_time' or attr=='solar_angle':
+            val = almanac_obj.sun.ha+180.0
+            if attr == 'solar_time':
+                return val
+            else:
+                vt = ValueTuple(val, 'degree_compass', 'group_direction')
+                return weewx.units.ValueHelper(vt,
+                                               context = 'ephem_day',
+                                               formatter=almanac_obj.formatter,
+                                               converter=almanac_obj.converter)
+        elif attr=='solar_datetime':
+            # True Apparent Solar Time (sundial time)
+            # We use NumPy because the hour angle is already
+            # calculated using NumPy and a NumPy data type.
+            # convert hour angle to part of day
+            ha = almanac_obj.sun.ha/360.0
+            # local Julian Date
+            ti = time_ti.ut1+almanac_obj.lon/360.0
+            # find solar Julian Day from mean Julian Date
+            if ha>0.5:
+                ti = numpy.floor(ti)
+            elif ha<-0.5:
+                ti = numpy.ceil(ti)
+            else:
+                ti = numpy.round(ti,0)
+            # Julian Day (not Julian Date) + hour angle, converted
+            # to local solar Dublin Julian Date
+            vt = ValueTuple(ti+ha-2415020.0,'local_djd','group_localtime')
+            formatter = SkyfieldFormatter(
+                unit_label_dict=almanac_obj.formatter.unit_label_dict,
+                time_format_dict=almanac_obj.formatter.time_format_dict,
+                ordinate_names=almanac_obj.formatter.ordinate_names,
+                deltatime_format_dict=almanac_obj.formatter.deltatime_format_dict
+            )
+            return ValueHelper(vt,
+                                context="day",
+                                formatter=formatter,
+                                converter=almanac_obj.converter)
         elif attr in eph:
             # The attribute is a heavenly body (such as 'sun', or 'jupiter').
             # Bind the almanac and the heavenly body together and return as an
@@ -439,13 +484,14 @@ class SkyfieldAlmanacBinder:
                         vt = ValueTuple(ha._degrees,'degree_compass','group_direction')
                     elif attr=='ha_declination':
                         vt = ValueTuple(dec.radians,'radian','group_angle')
-                    else:
+                    elif attr=='ha_distance':
                         vt = ValueTuple(distance.km,'km','group_distance')
+                    else:
+                        vt = None
                     return ValueHelper(vt,
-                                               context="ephem_day",
-                                               formatter=self.almanac.formatter,
-                                               converter=self.almanac.converter)
-
+                                       context="ephem_day",
+                                       formatter=self.almanac.formatter,
+                                       converter=self.almanac.converter)
             # `attr` is not provided by this extension. So raise an exception.
             raise AttributeError("%s.%s" % (self.heavenly_body,attr))
 
@@ -471,6 +517,29 @@ class SkyfieldAlmanacBinder:
                                            context="ephem_day",
                                            formatter=self.almanac.formatter,
                                            converter=self.almanac.converter)
+
+
+class SkyfieldFormatter(Formatter):
+    """ special formatter including solar time """
+
+    def _to_string(self, val_t, context='current', addLabel=True,
+                   useThisFormat=None, None_string=None,
+                   localize=True):
+        if val_t is not None and val_t[0] is not None:
+            if val_t[1]=='local_djd':
+                ti = time.gmtime((val_t[0]-25567.5)*DAY_S)
+                if useThisFormat is None:
+                    val_str = time.strftime(self.time_format_dict.get(context, "%d-%b-%Y %H:%M"),
+                                            ti)
+                else:
+                    val_str = time.strftime(useThisFormat, ti)
+                return val_str
+        return super(SkyfieldFormatter,self)._to_string(val_t,
+                                                context=context,
+                                                addLabel=addLabel,
+                                                useThisFormat=useThisFormat,
+                                                None_string=None_string,
+                                                localize=localize)
 
 
 class SkyfieldMaintenanceThread(threading.Thread):
@@ -500,7 +569,9 @@ class SkyfieldMaintenanceThread(threading.Thread):
         if self.update_interval:
             self.update_interval = max(self.update_interval,86400)
         self.log_ftp = weeutil.weeutil.to_bool(alm_conf_dict.get('log_ftp',False))
-        self.ts_url = alm_conf_dict.get('timescale_url',None)
+        self.ts_urls = alm_conf_dict.get('timescale_url',None)
+        if self.ts_urls and not isinstance(self.ts_urls,list):
+            self.ts_urls = [self.ts_urls]
         loginf("ephemeris file: '%s', timescale: %s, update interval: %.2f days" % (self.eph_file,'builtin' if self.builtin else 'IERS file',self.update_interval/DAY_S))
         self.evt = threading.Event()
         self.running = True
@@ -541,9 +612,9 @@ class SkyfieldMaintenanceThread(threading.Thread):
         # load timescale
         if self.last_ts_update<=now or ts is None:
             try:
-                if not self.builtin and self.ts_url:
+                if not self.builtin and self.ts_urls:
                     # download timescale from a different location
-                    file = self.ftp_download(self.ts_url,'timescale.tmp')
+                    file = self.download(self.ts_urls,'timescale.tmp')
                     if file:
                         os.rename(file,os.path.join(self.path,TIMESCALE_FILE))
                 _ts = load.timescale(builtin=self.builtin)
@@ -572,6 +643,40 @@ class SkyfieldMaintenanceThread(threading.Thread):
         # `eph` and `ts` are up to date if they were updated less than 24 
         # hours ago.
         return self.last_ts_update>now and self.last_eph_update>now
+    
+    def download(self, urls, filename=None):
+        # try URLs in order
+        for url in urls:
+            x = url.split(':')[0].lower()
+            if x in ('ftp','ftps'):
+                fn = self.ftp_download(url, filename)
+            elif x in ('http','https'):
+                fn = self.http_download(url, filename)
+            else:
+                fn = None
+            if fn is not None: return fn
+        return None
+    
+    def http_download(self, url, filename=None):
+        try:
+            # target path
+            if filename is None:
+                x = url.split('/')
+                if len(x)>=4: filename = x[-1]
+            filename = os.path.join(self.path,filename)
+            # download
+            headers = {'User-Agent':'weewx-skyfieldalmanac'}
+            reply = requests.get(url, headers=headers, timeout=5)
+            if reply.status_code==200:
+                with open(filename,'wb') as f:
+                    f.write(reply.content)
+                if self.log_ftp:
+                    loginf("thread '%s': successfully downloaded '%s' to '%s'" % (self.name,url,filename))
+                return filename
+            logerr("thread '%s': HTTP download failed with error code %s" % (self.name,reply.status_code))
+        except (OSError,requests.exceptions.Timeout) as e:
+            logerr("thread '%s': HTTP download %s - %s" % (self.name,e.__class__.__name__,e))
+        return None
     
     def ftp_download(self, url, filename=None):
         """ Download from FTP server """
@@ -606,6 +711,8 @@ class SkyfieldMaintenanceThread(threading.Thread):
             # close connection
             x = ftp.quit()
             if self.log_ftp: loginf(x)
+            if self.log_ftp:
+                loginf("thread '%s': successfully downloaded '%s' to '%s'" % (self.name,url,filename))
             return filename
         except OSError as e:
             logerr("thread '%s': FTP download %s - %s" % (self.name,e.__class__.__name__,e))

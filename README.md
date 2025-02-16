@@ -11,6 +11,9 @@ Skyfield is the successor of PyEphem. It is from the same author, Brandon
 Rhodes. It uses more modern and more precise formulae and actual ephemeris
 provided by NASA's JPL.
 
+There is no other requirement than installing this extension to replace
+PyEphem calculated values by Skyfield calculated values in existing skins.
+
 ## Prerequisites
 
 WeeWX from version 5.2 on is required.
@@ -67,6 +70,10 @@ available if you have special requirements.
     ephemeris = de440s.bsp  # or de440.bsp or de441.bsp
     # use builtin timescale data or download it from IERS
     use_builtin_timescale = true
+    # URL(s) of the timescale file (optional)
+    timescale_url = '...'
+    # whether to log FTP responses (optional)
+    log_ftp = false
     # update interval 1 year (set to 0 for no update)
     update_interval = 31557600
 ```
@@ -78,9 +85,9 @@ available if you have special requirements.
 * `use_builtin_timescale`: Use builtin timescale data or download them
   from IERS. See [UT1 and downloading IERS data](https://rhodesmill.org/skyfield/time.html#ut1-and-downloading-iers-data)
   for details.
-* `timescale_url`: URL to download the timescale file from (optional). 
+* `timescale_url`: an URL or a list of URLs to download the timescale file from (optional). 
   There is a default URL hardcoded in Skyfield. Unfortunately the server
-  is temperorarily down. That's why you can specify an alternative
+  is temporarily down. That's why you can specify an alternative
   source here.
 * `log_ftp`: whether to log FTP responses of the server (optional).
   If you specified an alternative source for the timescale file in 
@@ -102,10 +109,52 @@ information is available. Initialization can take several archive
 intervals to be completed at first run after installation, depending on 
 configuration.
 
+### Date and time
+
+Date and time values do not require a heavenly body. They refer to the
+location on earth that `$almanac` is bound to. You can specify the
+location by parameters to `$almanac`. If you do not set them, the
+location of the station is used.
+
+WeeWX datatype   | Pure float result | Meaning
+-----------------|-------------------|----------------
+`sidereal_angle` | `sidereal_time`   | Local Apparent Sidereal Time
+`solar_angle`    | `solar_time`      | Local Apparent Solar Time
+`solar_datetime` | &mdash;           | true local solar date and time
+
+Note: The tags `$almanac.sidereal_angle`, `$almanac.sidereal_time`,
+`$almanac.solar_angle`, and `$almanac.solar_time` return a value
+in decimal degrees rather than the more customary value from 0 to
+24 hours.
+
+If you do not install this extension together with Skyfield but use PyEphem,
+which is supported by core WeeWX, `sidereal_angle` and `sidereal_time` are
+available only.
+
 ### Calendar events
 
-This extension provides the events described in the WeeWX customization 
-guide, but calculated using Skyfield. 
+This extension provides the events described in the WeeWX customization
+guide, but calculated using Skyfield. They happen independent of your
+location on earth at same instant all over the world. The local time
+differs only.
+
+Previous event | Next event |
+---------------|------------|
+`previous_equinox` | `next_equinox`
+`previous_solstice` | `next_solstice`
+`previous_autumnal_equinox` | `next_autumnal_equinox`
+`previous_vernal_equinox` | `next_vernal_equinox`
+`previous_winter_solstice` | `next_winter_solstice`
+`previous_summer_solstice` | `next_summer_solstice`
+`previous_new_moon` | `next_new_moon`
+`previous_first_quarter_moon` | `next_first_quarter_moon`
+`previous_full_moon` | `next_full_moon`
+`previous_last_quarter_moon` | `next_last_quarter_moon`
+
+Example:
+```
+$almanac.next_solstice
+```
 
 ### Heavenly bodies
 
@@ -163,8 +212,19 @@ Q: Are there disadvantages of Skyfield?
 A: Yes. Always are. Skyfield depends on NumPy, while PyEphem does not.
 
 
+Q: How do I have to adapt my skin to use this extension?
+
+A: There is nothing to do. Installing this extension is enough. But you
+   could add the additional attributes supported by this extension
+   to your skin to display them there.
+
+
 ## Links
 
 * [WeeWX](https://weewx.com)
 * [Skyfield](https://rhodesmill.org/skyfield/)
+* [International Earth Rotation and Reference Service IERS](https://iers.org)
+  (provides the timescale file `finals2000A.all`)
+* [Jet Propulsion Laboratory JPL](https://www.jpl.nasa.gov)
+  (provides the ephemeris files)
 * [Issue #981: PyEphem is deprecated](https://github.com/weewx/weewx/issues/981)
