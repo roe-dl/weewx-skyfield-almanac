@@ -21,7 +21,7 @@ from skyfield.earthlib import refraction, refract
 
 LATITUDE = 50.0
 LONGITUDE = 13.0
-ALTITUDE = 169
+ALTITUDE = 754
 TIME_TS = 1739098800
 TEMPERATURE_C = 15.0
 PRESSURE_MBAR = 1013.25
@@ -58,20 +58,23 @@ class AlmanacTest(unittest.TestCase):
         self.assertEqual(str(self.alm.sidereal_angle),'318°')
     
     def test_refraction(self):
-        observer, horizon, refr = skyfieldalmanac._get_observer(alm,TIME_TS)
-        self.assertAlmostEqual(horizon,-0.5660773571020249,3)
-        self.assertAlmostEqual(refr,0.5660773571020249,3)
-        self.assertAlmostEqual(refract(-refr,TEMPERATURE_C,PRESSURE_MBAR),0,3)
+        observer, horizon, body = skyfieldalmanac._get_observer(alm,'sun',False)
+        #self.assertAlmostEqual(refr,0.5660773571020249,3)
+        #self.assertAlmostEqual(refract(-refr,TEMPERATURE_C,PRESSURE_MBAR),0,3)
+        self.assertAlmostEqual(horizon,-0.8928867722171352)
         
     def test_sun(self):
         # Test backwards compatibility
-        self.assertEqual(str(self.alm.sunrise),'07:30:34')
-        self.assertEqual(str(self.alm.sunset),'17:14:28')
+        self.assertEqual(str(self.alm.sunrise),'07:28:22')
+        self.assertEqual(str(self.alm.sunset),'17:16:39')
         
         # Use Skyfield
-        self.assertEqual(str(self.alm.sun.rise),'07:30:34')
+        self.assertEqual(str(self.alm.sun.rise),'07:28:22')
         self.assertEqual(str(self.alm.sun.transit),'12:22:10')
-        self.assertEqual(str(self.alm.sun.set),'17:14:28')
+        self.assertEqual(str(self.alm.sun.set),'17:16:39')
+        self.assertEqual(str(self.alm.sun.antitransit),'00:22:09')
+        self.assertEqual(str(self.alm.sun.previous_antitransit),'00:22:09')
+        self.assertEqual(str(self.alm.sun.next_antitransit),'00:22:10')
         
         # Equinox / solstice
         self.assertEqual(str(self.alm.next_vernal_equinox),'03/20/25 10:01:28')
@@ -147,7 +150,7 @@ alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=
 #print(alm.sun.visible_change())
 print(refract(6.0,15.0,1013.25),refract(-6.0,15.0,1013.25))
 print(skyfieldalmanac.eph)
-print(alm.sun.geo_dist)
+print(alm.sun.max_altitude,alm.sun.max_alt_time,alm.sun.transit)
 
 if __name__ == '__main__':
     unittest.main()

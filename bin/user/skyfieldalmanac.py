@@ -87,6 +87,7 @@ import numpy
 from skyfield import almanac
 from skyfield.api import N, S, E, W, Loader, wgs84
 from skyfield.earthlib import refraction
+from skyfield.searchlib import find_discrete, find_maxima
 from skyfield.data import iers
 from skyfield.constants import DAY_S
 
@@ -95,7 +96,7 @@ ts = None
 eph = None
 
 # Unit group and unit used for true solar time and local mean time
-for _, unitgroup in std_groups.items():
+for _, unitgroup in weewx.units.std_groups.items():
     unitgroup['group_localtime'] = 'local_djd'
 
 # Logging
@@ -139,17 +140,30 @@ def skyfield_time_to_djd(ti):
     """
     return ti.ut1-ti.dut1/DAY_S-2415020.0
 
-def _get_observer(almanac_obj, time_ts):
-    # Build an ephem Observer object
+def _get_observer(almanac_obj, target, use_center):
+    """ get observer object and refraction angle """
     # a location on earth surface
     observer = eph['Earth'] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
     # calculate refraction angle
-    refr = refraction(
-        almanac_obj.horizon,
-        temperature_C=almanac_obj.temperature,
-        pressure_mbar=almanac_obj.pressure
-    )
-    return observer, almanac_obj.horizon-refr, refr
+    if almanac_obj.pressure or almanac_obj.horizon:
+        horizon = almanac_obj.horizon
+        # Using `refraction()` switches off Skyfield's own target radius
+        # calculation. So you have to take into account the body's radius 
+        # at your own.
+        # https://github.com/skyfielders/python-skyfield/discussions/1042
+        if not use_center and horizon>-1.0:
+            if target.lower()=='sun': horizon -= 16.0/60.0
+        # `refraction()` returns the influence of refraction only. It does
+        # not include the horizon into the result.
+        refr = refraction(
+            horizon,
+            temperature_C=almanac_obj.temperature,
+            pressure_mbar=almanac_obj.pressure
+        )
+        horizon -= refr
+    else:
+        horizon = None
+    return observer, horizon, eph[target.replace('_',' ')]
 
 
 class SkyfieldAlmanacType(AlmanacType):
@@ -329,13 +343,12 @@ class SkyfieldAlmanacBinder:
     @property
     def visible(self):
         """Calculate how long the body has been visible today"""
-        observer, _, refr = _get_observer(self.almanac,self.almanac.time_ts)
-        body = eph[self.heavenly_body]
+        observer, horizon, body = _get_observer(self.almanac,self.heavenly_body,self.use_center)
         timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
         t0 = timestamp_to_skyfield_time(timespan[0])
         t1 = timestamp_to_skyfield_time(timespan[1])
-        tr, yr = almanac.find_risings(observer, body, t0, t1, horizon_degrees=-refr)
-        ts, ys = almanac.find_settings(observer, body, t0, t1, horizon_degrees=-refr)
+        tr, yr = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
+        ts, ys = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
         if len(tr)<1 or len(ts)<1:
             visible = None
         elif yr[-1] and ys[-1]:
@@ -375,11 +388,10 @@ class SkyfieldAlmanacBinder:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
             raise AttributeError(attr)
         
-        body = eph[self.heavenly_body.replace('_',' ')]
-        
         if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
+            body = eph[self.heavenly_body.replace('_',' ')]
             astrometric = eph['Earth'].at(t).observe(body)
             if attr in ('geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
                 astrometric = astrometric.apparent()
@@ -401,7 +413,7 @@ class SkyfieldAlmanacBinder:
                                                formatter=self.almanac.formatter,
                                                converter=self.almanac.converter)
         
-        observer, horizon, refr = _get_observer(self.almanac,self.almanac.time_ts)
+        observer, horizon, body = _get_observer(self.almanac,self.heavenly_body,self.use_center)
 
         previous = attr.startswith('previous_')
         next = attr.startswith('next_')
@@ -416,7 +428,7 @@ class SkyfieldAlmanacBinder:
             t0 = timestamp_to_skyfield_time(self.almanac.time_ts)
             t1 = timestamp_to_skyfield_time(self.almanac.time_ts+86400)
             evt = attr[5:]
-        elif attr in ('rise','set','transit','antitransit'):
+        elif attr in ('rise','set','transit','antitransit','max_alt','max_alt_time','max_altitude'):
             # get the event within the day the timestamp is in
             timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
             t0 = timestamp_to_skyfield_time(timespan[0])
@@ -500,14 +512,46 @@ class SkyfieldAlmanacBinder:
         
         t = None
         if evt in ('rise','rising'):
+            # rising
             t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
         elif evt in ('set','setting'):
+            # setting
             t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
         elif evt=='transit':
+            # meridian transit
             t = almanac.find_transits(observer, body, t0, t1)
             y = True
         elif evt=='antitransit':
-            raise AttributeError("%s.%s" % (self.heavenly_body,attr))
+            # antitransit
+            def az_degrees(t):
+                position = observer.at(t).observe(body).apparent()
+                ha, _, _ = position.hadec()
+                return ha.radians>=0
+            az_degrees.step_days = 0.5
+            t, val = find_discrete(t0, t1, az_degrees)
+            if len(t)>1:
+                if val[0]==1:
+                    t = t[1:]
+                    val = val[1:]
+                else:
+                    t = t[0:1]
+                    val = val[0:1]
+            y = len(t)>=1
+        elif evt in ('max_alt','max_alt_time','max_altitude'):
+            def alt_degrees(t):
+                position = observer.at(t).observe(body).apparent()
+                alt, _, _ = position.altaz()
+                return alt.radians
+            alt_degrees.step_days = 0.5
+            t, val = find_maxima(t0, t1, alt_degrees)
+            if evt=='max_alt' or evt=='max_altitude':
+                val = val[-1] if len(val)>=1 else None
+                if evt=='max_alt': return val
+                return ValueHelper(ValueTuple(val,"radian","group_angle"),
+                                   context="day",
+                                   formatter=self.almanac.formatter,
+                                   converter=self.almanac.converter)
+            y = len(t)>=1
         else:
             # `attr` is not provided by this extension. So raise an exception.
             raise AttributeError("%s.%s" % (self.heavenly_body,attr))
@@ -519,7 +563,7 @@ class SkyfieldAlmanacBinder:
                                            converter=self.almanac.converter)
 
 
-class SkyfieldFormatter(Formatter):
+class SkyfieldFormatter(weewx.units.Formatter):
     """ special formatter including solar time """
 
     def _to_string(self, val_t, context='current', addLabel=True,

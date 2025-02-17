@@ -133,10 +133,11 @@ available only.
 
 ### Calendar events
 
+Calendar events do not require a heavenly body. They refer to earth.
 This extension provides the events described in the WeeWX customization
 guide, but calculated using Skyfield. They happen independent of your
 location on earth at same instant all over the world. The local time
-differs only.
+differs only. Here is a list of available events:
 
 Previous event | Next event |
 ---------------|------------|
@@ -171,6 +172,8 @@ WeeWX datatype | Pure float result | Meaning
 `hour angle`   | `ha`              | topocentric hour angle
 `ha_declination` | `ha_dec`        | declination in reference to the coordinate system of the hour angle
 `ha_distance`  | `ha_dist`         | distance in referenc to the coordinate system of the hour angle
+`max_altitude` | `max_alt`         | maximum altitude
+`max_alt_time` | &mdash;           | timestamp of the maximum altitude
 
 Depending on the ephemeris you chose you may be required to add
 `_barycenter` to the name of a heavenly body to get results
