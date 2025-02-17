@@ -109,6 +109,18 @@ information is available. Initialization can take several archive
 intervals to be completed at first run after installation, depending on 
 configuration.
 
+The general syntax is:
+
+```
+$almanac(almanac_time=time,            ## Unix epoch time
+         lat=latitude, lon=longitude,  ## degrees
+         altitude=altitude,            ## meters
+         pressure=pressure,            ## mbars
+         horizon=horizon,              ## degrees
+         temperature=temperature_C     ## degrees C
+       ).heavenly_body(use_center=[01]).attribute
+```
+
 ### Date and time
 
 Date and time values do not require a heavenly body. They refer to the
@@ -127,6 +139,8 @@ Note: The tags `$almanac.sidereal_angle`, `$almanac.sidereal_time`,
 in decimal degrees rather than the more customary value from 0 to
 24 hours.
 
+Solar time is the time a sundial would show.
+
 If you do not install this extension together with Skyfield but use PyEphem,
 which is supported by core WeeWX, `sidereal_angle` and `sidereal_time` are
 available only.
@@ -136,7 +150,7 @@ available only.
 Calendar events do not require a heavenly body. They refer to earth.
 This extension provides the events described in the WeeWX customization
 guide, but calculated using Skyfield. They happen independent of your
-location on earth at same instant all over the world. The local time
+location on earth at the same instant all over the world. The local time
 differs only. Here is a list of available events:
 
 Previous event | Next event |
@@ -163,6 +177,9 @@ This extension provides the attributes described in the WeeWX customization
 guide, but calculated using Skyfield. Additionally it provides some
 extra attributes, that are not available with PyEphem.
 
+Here is the list of attributes provided by this extension but not by
+core WeeWX using PyEphem:
+
 WeeWX datatype | Pure float result | Meaning
 ---------------|-------------------|----------------
 `astro_dist`   | `a_dist`          | astrometric geocentric distance
@@ -179,7 +196,7 @@ Depending on the ephemeris you chose you may be required to add
 `_barycenter` to the name of a heavenly body to get results
 (for example `jupiter_barycenter`).
 
-### PyEphem and Skyfield
+## PyEphem and Skyfield
 
 If you install both PyEphem and Skyfield, Skyfield is preferred. If the
 given heavenly body is available with Skyfield, the attribute is calculated

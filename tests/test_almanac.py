@@ -124,11 +124,17 @@ class AlmanacTest(unittest.TestCase):
         self.assertEqual(str(self.alm.sun.geo_dist),'91716033.5 miles')
     
     def test_moon(self):
+        # rising and setting
+        self.assertEqual(str(alm.moon.rise),'13:18:47')
+        self.assertEqual(str(alm.moon.set),'06:13:17')
+        
+        # phase
         self.assertEqual(alm.moon_phase,'waxing gibbous (increasing to full)')
         self.assertEqual(alm.moon_index,3)
         self.assertEqual(alm.moon_fullness,90)
         self.assertAlmostEqual(alm.moon.moon_fullness,89.82441559659536,2)
         
+        # events
         self.assertEqual(str(alm.next_new_moon),'02/28/25 01:44:49')
         self.assertEqual(str(alm.next_full_moon),'02/12/25 14:53:23')
         self.assertEqual(str(alm.previous_full_moon),'01/13/25 23:26:54')
@@ -148,9 +154,7 @@ alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=
 #print(alm.sun.altitude,alm.sun.azimuth,alm.sun.alt,alm.sun.az)
 #print(alm.sun.visible)
 #print(alm.sun.visible_change())
-print(refract(6.0,15.0,1013.25),refract(-6.0,15.0,1013.25))
 print(skyfieldalmanac.eph)
-print(alm.sun.max_altitude,alm.sun.max_alt_time,alm.sun.transit)
 
 if __name__ == '__main__':
     unittest.main()
