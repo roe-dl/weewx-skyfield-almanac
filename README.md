@@ -96,18 +96,25 @@ available if you have special requirements.
 * `update_interval`: interval for updating ephemeris and timescale data
   (set to 0 to switch off updates)
 
-## Attributes
+## Usage
 
-See the WeeWX customization guide, section "The Cheetah generator",
-sub-section
-"[Almanac](http://weewx.com/docs/latest/custom/cheetah-generator/#almanac)",
-for a detailed description how to use the almanac in WeeWX.
+There is no other requirement than installing this extension to replace
+PyEphem calculated values by Skyfield calculated values in existing skins.
 
 Once the weewx-skyfield-almanac extension is installed and initialized after
 startup, `$almanac.hasExtras` becomes `True` and extended almanac
 information is available. Initialization can take several archive
 intervals to be completed at first run after installation, depending on 
 configuration.
+
+## Customization of WeeWX using this extension
+
+See the WeeWX customization guide, section "The Cheetah generator",
+sub-section
+"[Almanac](http://weewx.com/docs/latest/custom/cheetah-generator/#almanac)",
+for a detailed description how to use the almanac in WeeWX. This section
+repeats some of that information and adds, what is specific to this
+extension.
 
 The general syntax is:
 
@@ -120,6 +127,11 @@ $almanac(almanac_time=time,            ## Unix epoch time
          temperature=temperature_C     ## degrees C
        ).heavenly_body(use_center=[01]).attribute
 ```
+
+If `almanac_time` is not specified, the actual time as returned by
+`$current.dateTime` is used.
+
+If `lat` and `lon` are not specified, the location of the station is used.
 
 ### Date and time
 
@@ -177,6 +189,27 @@ This extension provides the attributes described in the WeeWX customization
 guide, but calculated using Skyfield. Additionally it provides some
 extra attributes, that are not available with PyEphem.
 
+Depending on the ephemeris you chose you may be required to add
+`_barycenter` to the name of a heavenly body to get results
+(for example `jupiter_barycenter`).
+
+These events are supported for heavenly bodies in reference to the 
+location and the timestamp specified:
+
+Day of timestamp | Previous event | Next event | Meaning
+------|----------------|------------|----------
+`rise` | `previous_rising` | `next_rising` | rising of the body above the horizon
+`transit` | `previous_transit` | `next_transit` | when the body transits the meridian
+`set` | `previous_setting` | `next_setting` | setting of the body above the horizon
+`antitransit` | `previous_antitransit` | `next_antitransit` | antitransit
+`visible` | &mdash; | &mdash; | how long the body will be visible
+`visible_change` | &mdash; | &mdash; | change in visbility compared to previous day
+
+Example:
+```
+$almanac.sun.rise
+```
+
 Here is the list of attributes provided by this extension but not by
 core WeeWX using PyEphem:
 
@@ -192,9 +225,40 @@ WeeWX datatype | Pure float result | Meaning
 `max_altitude` | `max_alt`         | maximum altitude
 `max_alt_time` | &mdash;           | timestamp of the maximum altitude
 
-Depending on the ephemeris you chose you may be required to add
-`_barycenter` to the name of a heavenly body to get results
-(for example `jupiter_barycenter`).
+And these attributes are supported by both core WeeWX using PyEphem and
+this extension using Skyfield:
+
+WeeWX datatype | Pure float result | Meaning
+---------------|-------------------|----------------
+`azimuth` | `az` | apparent azimuth of the body in the sky
+`altitude` | `alt` | apparent altitude of the body in the sky
+`astro_ra` | `a_ra` | astrometric geocentric right ascension
+`astro_dec` | `a_dec` | astrometric geocentric declination
+`geo_ra` | `g_ra` | apparent geocentric right ascension
+`geo_dec` | `g_dec` | apparent geocentric declination
+`topo_ra` | `ra` | apparent topocentric right ascension
+`topo_dec` | `dec` | apparent topocentric declination
+
+### Coordinates
+
+Within base plane | Rectangular to it | Base plane  | Origin | Direction
+-----------|--------------|-------------|--------|-------------
+longitude (-180°...+180°) | latitude (-90°...+90°) | earth's equator | earth's center | meridian of Greenwich
+azimuth (0°...360°) | altitude (-90°...+90°) | horizon of the observer | observer | geographic north
+right ascension (0°...360°) | declination (-90°...+90°) | earth's equator | earths's center | sun at spring equinox
+hour angle (-180°...+180°) | declination (-90°...+90°) | earth's equator | earth's center | observer's meridian
+
+Please note, that the earth's equator also moves in different ways, and
+the attributes differ in which of the movements they take care of.
+
+And those changes are also the reason you have to provide a date, called
+*epoch*, along with the coordinates to fully specify a location in space.
+For calculating apparent geocentric and topocentric right ascension and
+declination this extension uses `almanac_time` for the epoch.
+
+The hour angle and its declination are calculated using polar motion data
+if available. `ha_declination` (`ha_dec`) is thus slightly different from
+`topo_dec` (`dec`).
 
 ## PyEphem and Skyfield
 
@@ -248,3 +312,4 @@ A: There is nothing to do. Installing this extension is enough. But you
 * [Jet Propulsion Laboratory JPL](https://www.jpl.nasa.gov)
   (provides the ephemeris files)
 * [Issue #981: PyEphem is deprecated](https://github.com/weewx/weewx/issues/981)
+* [International Terrestrial Reference System ITRS](https://en.wikipedia.org/wiki/International_Terrestrial_Reference_System_and_Frame)
