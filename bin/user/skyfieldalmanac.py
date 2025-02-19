@@ -423,17 +423,20 @@ class SkyfieldAlmanacBinder:
             t0 = timestamp_to_skyfield_time(self.almanac.time_ts-86400)
             t1 = timestamp_to_skyfield_time(self.almanac.time_ts)
             evt = attr[9:]
+            idx = -1
         elif next:
             # get the next event after the given timestamp
             t0 = timestamp_to_skyfield_time(self.almanac.time_ts)
             t1 = timestamp_to_skyfield_time(self.almanac.time_ts+86400)
             evt = attr[5:]
+            idx = 0
         elif attr in ('rise','set','transit','antitransit','max_alt','max_alt_time','max_altitude'):
             # get the event within the day the timestamp is in
             timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
             t0 = timestamp_to_skyfield_time(timespan[0])
             t1 = timestamp_to_skyfield_time(timespan[1])
             evt = attr
+            idx = 0
         else:
             # convert given timestamp
             ti = timestamp_to_skyfield_time(self.almanac.time_ts)
@@ -513,26 +516,36 @@ class SkyfieldAlmanacBinder:
         t = None
         if evt in ('rise','rising'):
             # rising
-            t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
-            if (t is not None and len(t)>=1 and 
-                    self.almanac.horizon==0 and 
-                    self.heavenly_body.lower()=='moon' and 
-                    not self.use_center):
-                _, _, distance = observer.at(t).observe(body).apparent().hadec()
-                horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
-                horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
+            try:
                 t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
+                """
+                if (t is not None and len(t)>=1 and 
+                        self.almanac.horizon==0 and 
+                        self.heavenly_body.lower()=='moon' and 
+                        not self.use_center):
+                    _, _, distance = observer.at(t).observe(body).apparent().hadec()
+                    horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
+                    horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
+                    t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
+                """
+            except ValueError as e:
+                logerr("%s.%s: %s - %s" % (self.heavenly_body,attr,e.__class__.__name__,e))
+                t = None
         elif evt in ('set','setting'):
             # setting
-            t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
-            if (t is not None and len(t)>=1 and 
-                    self.almanac.horizon==0 and 
-                    self.heavenly_body.lower()=='moon' and 
-                    not self.use_center):
-                _, _, distance = observer.at(t).observe(body).apparent().hadec()
-                horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
-                horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
+            try:
                 t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
+                if (t is not None and len(t)>=1 and 
+                        self.almanac.horizon==0 and 
+                        self.heavenly_body.lower()=='moon' and 
+                        not self.use_center):
+                    _, _, distance = observer.at(t).observe(body).apparent().hadec()
+                    horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
+                    horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
+                    t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
+            except ValueError as e:
+                logerr("%s.%s: %s - %s" % (self.heavenly_body,attr,e.__class__.__name__,e))
+                t = None
         elif evt=='transit':
             # meridian transit
             t = almanac.find_transits(observer, body, t0, t1)
@@ -571,7 +584,7 @@ class SkyfieldAlmanacBinder:
         else:
             # `attr` is not provided by this extension. So raise an exception.
             raise AttributeError("%s.%s" % (self.heavenly_body,attr))
-        time_djd = skyfield_time_to_djd(t[-1]) if t is not None and len(t)>=1 and y else None
+        time_djd = skyfield_time_to_djd(t[idx]) if t is not None and len(t)>=1 and y else None
         return weewx.units.ValueHelper(ValueTuple(time_djd, "dublin_jd", "group_time"),
                                            context="ephem_day",
                                            formatter=self.almanac.formatter,
