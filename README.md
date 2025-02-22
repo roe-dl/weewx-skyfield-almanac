@@ -76,6 +76,8 @@ available if you have special requirements.
     log_ftp = false
     # update interval 1 year (set to 0 for no update)
     update_interval = 31557600
+    # enable LOOP packet augmentation
+    enable_live_data = true
 ```
 
 * `ephemeris`: Ephemeris file to use. Different files cover different
@@ -95,6 +97,8 @@ available if you have special requirements.
   on logging of the server responses in case of trouble.
 * `update_interval`: interval for updating ephemeris and timescale data
   (set to 0 to switch off updates)
+* `enable_live_data`: enable live data for fast changing almanac values
+  (default: on)
 
 ## Usage
 
@@ -239,7 +243,9 @@ WeeWX datatype | Pure float result | Meaning
 `topo_ra` | `ra` | apparent topocentric right ascension
 `topo_dec` | `dec` | apparent topocentric declination
 
-### Coordinates
+### Coordinate systems
+
+There are different coordinate systems used to express locations.
 
 Within base plane | Rectangular to it | Base plane  | Origin | Direction
 -----------|--------------|-------------|--------|-------------
@@ -266,6 +272,29 @@ If you install both PyEphem and Skyfield, Skyfield is preferred. If the
 given heavenly body is available with Skyfield, the attribute is calculated
 using Skyfield. Otherwise PyEphem is tried. If neither Skyfield nor 
 PyEphem know about the body, an exception is raised.
+
+## Live data
+
+Some skins do not only update the web pages once every archive interval
+but present live data out of LOOP packets. This extension can add fast 
+changing almanac values to the LOOP packet for live updates. To use them
+include them in MQTT output. To activate live data, set the
+`enable_live_data` configuration option to `true`, which is the default.
+
+* `solarAltitude`: current altitude of the sun
+* `solarAzimuth`: current azimuth of the sun
+* `solarTime`: current hour angle of the sun, counted from midnight
+  (that is sundial time)
+* `solarPath`: current percentage of the way of the sun from sunrise
+  to sunset
+
+If you want to use those values for further calculations - for example
+for sunshine duration calculation - make sure to put 
+`user.skyfieldalmanac.LiveService` in the list of data services before 
+the module that uses the values.
+
+For mobile stations the location is updated from `latitude` and `longitude`
+observation types if they are present in the LOOP packet.
 
 ## FAQ
 

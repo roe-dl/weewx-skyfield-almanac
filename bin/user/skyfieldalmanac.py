@@ -518,7 +518,6 @@ class SkyfieldAlmanacBinder:
             # rising
             try:
                 t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
-                """
                 if (t is not None and len(t)>=1 and 
                         self.almanac.horizon==0 and 
                         self.heavenly_body.lower()=='moon' and 
@@ -527,7 +526,6 @@ class SkyfieldAlmanacBinder:
                     horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
                     horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
                     t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
-                """
             except ValueError as e:
                 logerr("%s.%s: %s - %s" % (self.heavenly_body,attr,e.__class__.__name__,e))
                 t = None
@@ -826,5 +824,158 @@ class SkyfieldService(StdService):
         logdbg("%s stopped" % self.__class__.__name__)
 
 
+class LiveService(StdService):
+    """ calculate solar values for live update (optional service) """
+
+    def __init__(self, engine, config_dict):
+        """ init """
+        super(LiveService,self).__init__(engine, config_dict)
+        # configuration
+        alm_conf_dict = config_dict.get('Almanac',configobj.ConfigObj())
+        self.enabled = weeutil.weeutil.to_bool(alm_conf_dict.get('enable_live_data',True))
+        # station altitude
+        try:
+            self.altitude = weewx.units.convert(engine.stn_info.altitude_vt,'meter')[0]
+        except (ValueError,TypeError,IndexError):
+            self.altitude = None
+        loginf("Altitude %s ==> %.0f m" % (engine.stn_info.altitude_vt,self.altitude))
+        # station location
+        self.station = wgs84.latlon(engine.stn_info.latitude_f,
+                                    engine.stn_info.longitude_f,
+                                    elevation_m=self.altitude)
+        # observation types
+        weewx.units.obs_group_dict.setdefault('solarAltitude','group_angle')
+        weewx.units.obs_group_dict.setdefault('solarAzimuth','group_direction')
+        weewx.units.obs_group_dict.setdefault('solarTime','group_direction')
+        weewx.units.obs_group_dict.setdefault('solarPath','group_percent')
+        # instance variables
+        self.last_archive_outTemp = None # degree_C
+        self.last_archive_pressure = None # mbar
+        self.last_almanac_error = 0
+        self.sunrise = 0
+        self.sunset = 0
+        self.end_of_day = 0
+        # register the methods with the kernel
+        if self.enabled:
+            self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
+            self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
+        logdbg("%s started" % self.__class__.__name__)
+    
+    def shutDown(self):
+        logdbg("%s stopped" % self.__class__.__name__)
+    
+    def new_loop_packet(self, event):
+        """ augment loop packet """
+        # If there are a `latitude` and `longitude` observation type within
+        # the LOOP packet we assume the station to be mobile and set the
+        # current location.
+        try:
+            self.set_current_location(
+                weewx.units.as_value_tuple(event.packet,'latitude'),
+                weewx.units.as_value_tuple(event.packet,'longitude')
+            )
+        except LookupError:
+            pass
+        # calculate data and augment the LOOP packet
+        self.calc_almanac(event.packet,False)
+    
+    def new_archive_record(self, event):
+        """ augment archive record """
+        try:
+            val = weewx.units.as_value_tuple(event.record,'outTemp')
+            self.last_archive_outTemp = weewx.units.convert(val,'degree_C')[0]
+            logdbg("outTemp %s °C" % self.last_archive_outTemp)
+        except (LookupError,ArithmeticError,AttributeError):
+            pass 
+        try:
+            val = weewx.units.as_value_tuple(event.record,'pressure')
+            self.last_archive_pressure = weewx.units.convert(val,'mbar')[0]
+            logdbg("pressure %s mbar" % self.last_archive_pressure)
+        except (LookupError,ArithmeticError,AttributeError):
+            pass
+        # calculate data and augment the ARCHIVE record
+        self.calc_almanac(event.record,True)
+    
+    def calc_almanac(self, packet, archive):
+        """ calculate solarAzimuth, solarAltitude, solarPath """
+        # Do nothing until the Skyfield almanac ist initialized.
+        if eph is None: return
+        try:
+            sun = eph['Sun']
+            # target unit system
+            usUnits = packet['usUnits']
+            # current timestamp
+            ts = packet.get('dateTime',time.time())
+            ti = timestamp_to_skyfield_time(ts)
+            # observer's location
+            observer = eph['Earth'] + self.station
+            # apparent position of the sun in respect to the observer's location
+            position = observer.at(ti).observe(sun).apparent()
+            # solar altitude and azimuth
+            alt, az, _ = position.altaz(temperature_C=self.last_archive_outTemp,pressure_mbar=self.last_archive_pressure)
+            packet['solarAzimuth'] = weewx.units.convertStd(ValueTuple(az.degrees,'degree_compass','group_direction'),usUnits)[0]
+            packet['solarAltitude'] = weewx.units.convertStd(ValueTuple(alt.radians,'radian','group_angle'),usUnits)[0]
+            # solar time (hour angle)
+            ha, _, _ = position.hadec()
+            packet['solarTime'] = weewx.units.convertStd(ValueTuple(ha._degrees+180.0,'degree_compass','group_direction'),usUnits)[0]
+            # solar path
+            if archive and ((self.sunrise-8)<ha._degrees<self.sunrise or 
+                                                           ts>self.end_of_day):
+                if (self.last_archive_outTemp is not None and 
+                                self.last_archive_pressure is not None):
+                    horizon = -16.0/60.0-refraction(
+                        -16.0/60.0,
+                        temperature_C=self.last_archive_outTemp,
+                        pressure_mbar=self.last_archive_pressure
+                    )
+                else:
+                    horizon = None
+                start_ts, end_ts = weeutil.weeutil.archiveDaySpan(ts)
+                start_ti = timestamp_to_skyfield_time(start_ts)
+                end_ti = timestamp_to_skyfield_time(end_ts)
+                t, y = almanac.find_risings(observer,sun,start_ti,end_ti,horizon_degrees=horizon)
+                if y[0]:
+                    h, _, _ = observer.at(t[0]).observe(sun).apparent().hadec()
+                    self.sunrise = h._degrees
+                else:
+                    self.sunrise = 0
+                t, y = almanac.find_settings(observer,sun,start_ti,end_ti,horizon_degrees=horizon)
+                if y[0]:
+                    h, _, _ = observer.at(t[0]).observe(sun).apparent().hadec()
+                    self.sunset = h._degrees
+                else:
+                    self.sunset = 0
+                self.end_of_day = end_ts
+            if (self.sunrise and self.sunset and 
+                          self.sunset>self.sunrise and 
+                                       self.sunrise<=ha._degrees<=self.sunset):
+                sp = (ha._degrees-self.sunrise)/(self.sunset-self.sunrise)*100.0
+            else:
+                sp = None
+            packet['solarPath'] = weewx.units.convertStd(ValueTuple(sp,'percent','group_percent'),usUnits)[0]
+        except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError) as e:
+            # report the error at most once every 5 minutes
+            if time.time()>=self.last_almanac_error+300:
+                logerr("almanac error: %s" % e)
+                self.last_almanac_error = time.time()
+    
+    def set_current_location(self, latitude_vt, longitude_vt):
+        """ set current location in case of a mobile station """
+        if latitude_vt is not None and longitude_vt is not None:
+            # If there are `latitude` and `longitude` observation types
+            # in the LOOP packet, we assume the station to be mobile
+            # and set the station's location to the new values.
+            try:
+                lat = weewx.units.convert(latitude_vt,'degree')[0]
+                lon = weewx.units.convert(longitude_vt,'degree')[0]
+                if lat is not None and lon is not None:
+                    self.station = wgs84.latlon(latitude,longitude)
+            except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError) as e:
+                # report the error at most once every 5 minutes
+                if time.time()>=self.last_almanac_error+300:
+                    logerr("could not set new location: %s - %s" % (e.__class__.__name__,e))
+                    self.last_almanac_error = time.time()
+        
+    
 # log version info at startup
 loginf("%s version %s" % ("Skyfield almanac extension",VERSION))
