@@ -66,20 +66,24 @@ available if you have special requirements.
 
 ```
 [Almanac]
-    # which ephemeris file to use
-    ephemeris = de440s.bsp  # or de440.bsp or de441.bsp
-    # use builtin timescale data or download it from IERS
-    use_builtin_timescale = true
-    # URL(s) of the timescale file (optional)
-    timescale_url = '...'
-    # whether to log FTP responses (optional)
-    log_ftp = false
-    # update interval 1 year (set to 0 for no update)
-    update_interval = 31557600
-    # enable LOOP packet augmentation
-    enable_live_data = true
+    [[Skyfield]]
+        # use this almanac
+        enable = true
+        # which ephemeris file to use
+        ephemeris = de440s.bsp  # or de440.bsp or de441.bsp
+        # use builtin timescale data or download it from IERS
+        use_builtin_timescale = true
+        # URL(s) of the timescale file (optional)
+        timescale_url = '...'
+        # whether to log FTP responses (optional)
+        log_ftp = false
+        # update interval 1 year (set to 0 for no update)
+        update_interval = 31557600
+        # enable LOOP packet augmentation
+        enable_live_data = true
 ```
 
+* `enable`: Enable this almanac extension
 * `ephemeris`: Ephemeris file to use. Different files cover different
   scopes of heavenly bodies. Some of those files are huge. See
   [Planets and their moons: JPL ephemeris files](https://rhodesmill.org/skyfield/planets.html)
@@ -295,6 +299,61 @@ the module that uses the values.
 
 For mobile stations the location is updated from `latitude` and `longitude`
 observation types if they are present in the LOOP packet.
+
+## Base data for calculation
+
+Astronomic calculations require two kinds of base data: time scales and
+ephemeris. Both are subject to regular updates due to new measurements
+and/or scientific findings. Therefore Skyfield allows for downloading new 
+versions of those data. Once downloaded the files are re-used every
+time WeeWX starts.
+
+### Time scales
+
+The earth does not rotate steadily and additionally slows down by time.
+This has to be taken into account when doing astronomic computations.
+Earth rotation is documented and published by the IERS, an international 
+organization (see link below). Skyfield comes with an internal list of
+time scale data (which of course gets out of date by time) or can use
+a file downloaded from IERS. Set the configuration option 
+`use_builtin_timescale` to `true` if you want to use the internal
+time data or to `false` if you want to use the external file called
+`finals2000A.all`.
+
+Astronomers know different time scales. Some of them depend on
+earth rotation (like UTC and UT1) and others do not (like TAI, TT,
+and TDB). The relation between those timescales are defined in
+the file mentioned above.
+
+Additionally that file contains information about polar motion, which
+is used for calculating the hour angle and the depending declination.
+
+### Ephemeris
+
+There are no built-in ephemeris. You have to provide an ephemeris file
+or let this extension download it from JPL or another source.
+
+The commonly used ephemeris file `de440.bsp` covers the following
+astronomic objects:
+
+```
+SPICE kernel file 'de440.bsp' has 14 segments
+  JD 2287184.50 - JD 2688976.50  (1549-12-30 through 2650-01-24)
+      0 -> 1    SOLAR SYSTEM BARYCENTER -> MERCURY BARYCENTER
+      0 -> 2    SOLAR SYSTEM BARYCENTER -> VENUS BARYCENTER
+      0 -> 3    SOLAR SYSTEM BARYCENTER -> EARTH BARYCENTER
+      0 -> 4    SOLAR SYSTEM BARYCENTER -> MARS BARYCENTER
+      0 -> 5    SOLAR SYSTEM BARYCENTER -> JUPITER BARYCENTER
+      0 -> 6    SOLAR SYSTEM BARYCENTER -> SATURN BARYCENTER
+      0 -> 7    SOLAR SYSTEM BARYCENTER -> URANUS BARYCENTER
+      0 -> 8    SOLAR SYSTEM BARYCENTER -> NEPTUNE BARYCENTER
+      0 -> 9    SOLAR SYSTEM BARYCENTER -> PLUTO BARYCENTER
+      0 -> 10   SOLAR SYSTEM BARYCENTER -> SUN
+      3 -> 301  EARTH BARYCENTER -> MOON
+      3 -> 399  EARTH BARYCENTER -> EARTH
+      1 -> 199  MERCURY BARYCENTER -> MERCURY
+      2 -> 299  VENUS BARYCENTER -> VENUS
+```
 
 ## FAQ
 

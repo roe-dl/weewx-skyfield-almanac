@@ -19,15 +19,18 @@ class SkyfieldInstaller(ExtensionInstaller):
             data_services='user.skyfieldalmanac.LiveService',
             config={
                 'Almanac': {
-                    'ephemeris':'de440.bsp',
-                    'use_builtin_timescale':'true',
-                    'timescale_url': [
-                        'https://datacenter.iers.org/products/eop/rapid/standard/finals2000A.all',
-                        'ftps://gdc.cddis.eosdis.nasa.gov/products/iers/finals.all'
-                    ],
-                    '#log_ftp':'false',
-                    'update_interval':'31557600',
-                    'enable_live_data':'true'
+                    'Skyfield': {
+                        'enable':'true',
+                        'ephemeris':'de440.bsp',
+                        'use_builtin_timescale':'true',
+                        'timescale_url': [
+                            'https://datacenter.iers.org/products/eop/rapid/standard/finals2000A.all',
+                            'ftps://gdc.cddis.eosdis.nasa.gov/products/iers/finals.all'
+                        ],
+                        '#log_ftp':'false',
+                        'update_interval':'31557600',
+                        'enable_live_data':'true'
+                    }
                 }
             },
             files=[('bin/user', ['bin/user/skyfieldalmanac.py'])]

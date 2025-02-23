@@ -32,7 +32,9 @@ CONFIG = configobj.ConfigObj({
     }
   },
   'Almanac': {
-    'update_interval':0
+    'Skyfield': {
+      'update_interval':0
+    }
   }
 })
 
@@ -155,6 +157,7 @@ alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=
 #print(alm.sun.visible)
 #print(alm.sun.visible_change())
 print(skyfieldalmanac.eph)
+print(alm.jupiter_barycenter.rise)
 
 if __name__ == '__main__':
     unittest.main()

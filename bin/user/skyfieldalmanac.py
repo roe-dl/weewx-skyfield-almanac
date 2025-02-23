@@ -35,16 +35,19 @@
     Configuration:
     
     [Almanac]
-        # which ephemeris file to use
-        ephemeris = de440s.bsp  # or de440.bsp or de441.bsp
-        # use builtin timescale data or download it from IERS
-        use_builtin_timescale = true
-        # URL(s) of the timescale file (optional)
-        timescale_url = '...'
-        # whether to log FTP responses (optional)
-        log_ftp = false
-        # update interval 1 year (set to 0 for no update)
-        update_interval = 31557600
+        [[Skyfield]]
+            # Use this almanac
+            enable = true
+            # which ephemeris file to use
+            ephemeris = de440s.bsp  # or de440.bsp or de441.bsp
+            # use builtin timescale data or download it from IERS
+            use_builtin_timescale = true
+            # URL(s) of the timescale file (optional)
+            timescale_url = '...'
+            # whether to log FTP responses (optional)
+            log_ftp = false
+            # update interval 1 year (set to 0 for no update)
+            update_interval = 31557600
     
     Skyfield downloads the timescale file finals2000A.all from a server that
     is temporarily down. If you set `use_builtin_timescale` to `false` and
@@ -113,6 +116,15 @@ def loginf(msg):
 def logerr(msg):
     log.error(msg)
 
+
+def _get_config(config_dict):
+    """ get almanac configuration """
+    conf_dict = config_dict.get('Almanac',configobj.ConfigObj()).get('Skyfield',configobj.ConfigObj())
+    alm_conf_dict = weeutil.config.accumulateLeaves(conf_dict)
+    alm_conf_dict['enable'] = weeutil.weeutil.to_bool(conf_dict.get('enable',True))
+    alm_conf_dict['log_success'] = weeutil.weeutil.to_bool(alm_conf_dict.get('log_success',True))
+    alm_conf_dict['log_failure'] = weeutil.weeutil.to_bool(alm_conf_dict.get('log_failure',True))
+    return alm_conf_dict
 
 def timestamp_to_skyfield_time(timestamp):
     """ convert Unix timestamp to Skyfield Time
@@ -348,11 +360,11 @@ class SkyfieldAlmanacBinder:
         t0 = timestamp_to_skyfield_time(timespan[0])
         t1 = timestamp_to_skyfield_time(timespan[1])
         tr, yr = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
-        ts, ys = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
-        if len(tr)<1 or len(ts)<1:
+        tg, yg = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
+        if len(tr)<1 or len(tg)<1:
             visible = None
-        elif yr[-1] and ys[-1]:
-            visible = (ts.ut1-tr.ut1) * weewx.units.SECS_PER_DAY
+        elif yr[-1] and yg[-1]:
+            visible = (tg.ut1-tr.ut1) * weewx.units.SECS_PER_DAY
         else:
             #TODO always up and always down
             visible = 0
@@ -799,15 +811,20 @@ class SkyfieldService(StdService):
         # directory to save ephemeris and IERS files
         self.path = config_dict.get('DatabaseTypes',configobj.ConfigObj()).get('SQLite',configobj.ConfigObj()).get('SQLITE_ROOT','.')
         # configuration
-        alm_conf_dict = config_dict.get('Almanac',configobj.ConfigObj())
-        # thread to initialize Skyfield
-        self.skyfield_thread = SkyfieldMaintenanceThread(alm_conf_dict,self.path)
-        self.skyfield_thread.start()
-        # instantiate the Skyfield almanac
-        self.skyfield_almanac = SkyfieldAlmanacType()
-        # add to the list of almanacs
-        almanacs.insert(0,self.skyfield_almanac)
-        logdbg("%s started" % self.__class__.__name__)
+        alm_conf_dict = _get_config(config_dict)
+        self.log_success = alm_conf_dict['log_success']
+        self.log_failure = alm_conf_dict['log_failure']
+        if alm_conf_dict['enable']:
+            # thread to initialize Skyfield
+            self.skyfield_thread = SkyfieldMaintenanceThread(alm_conf_dict,self.path)
+            self.skyfield_thread.start()
+            # instantiate the Skyfield almanac
+            self.skyfield_almanac = SkyfieldAlmanacType()
+            # add to the list of almanacs
+            almanacs.insert(0,self.skyfield_almanac)
+            logdbg("%s started" % self.__class__.__name__)
+        else:
+            loginf("Skyfield almanac not enabled. Skipped.")
     
     def shutDown(self):
         """ remove this extension from the almanacs list and shut down the
@@ -831,8 +848,11 @@ class LiveService(StdService):
         """ init """
         super(LiveService,self).__init__(engine, config_dict)
         # configuration
-        alm_conf_dict = config_dict.get('Almanac',configobj.ConfigObj())
-        self.enabled = weeutil.weeutil.to_bool(alm_conf_dict.get('enable_live_data',True))
+        alm_conf_dict = _get_config(config_dict)
+        self.enabled = (alm_conf_dict['enable'] and 
+            weeutil.weeutil.to_bool(alm_conf_dict.get('enable_live_data',True)))
+        self.log_success = alm_conf_dict['log_success']
+        self.log_failure = alm_conf_dict['log_failure']
         # station altitude
         try:
             self.altitude = weewx.units.convert(engine.stn_info.altitude_vt,'meter')[0]
