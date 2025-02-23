@@ -1015,11 +1015,23 @@ class LiveService(StdService):
         """
         try:
             if latitude_vt is not None and longitude_vt is not None:
+                # altitude
                 try:
                     alt = weewx.units.convert(latitude_vt,'meter')[0] if altitude_vt else 0.0
                 except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError):
                     alt = 0.0
-                lat = weewx.units.convert(latitude_vt,'degree_angle')[0]
+                # latitude
+                # Note: From WeeWX 5.0 on there is a new unit `degree_angle`
+                #       and a new unit group `group_angle`, which are used
+                #       for altitude and declination, and thus would be
+                #       appropriate for latitude, too. Nevertheless, for
+                #       reasons of backward compatibility the old unit
+                #       `degree_compass` has also to be supported.
+                if latitude_vt[1]=='degree_compass':
+                    lat = latitude_vt[0]
+                else:
+                    lat = weewx.units.convert(latitude_vt,'degree_angle')[0]
+                # longitude
                 lon = weewx.units.convert(longitude_vt,'degree_compass')[0]
                 if lat is not None and lon is not None:
                     # Note: The default value of `elevation_m` is `0.0` not

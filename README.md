@@ -285,6 +285,23 @@ The hour angle and its declination are calculated using polar motion data
 if available. `ha_declination` (`ha_dec`) is thus slightly different from
 `topo_dec` (`dec`).
 
+### Units
+
+While WeeWX 4.X only knew one unit for angles, `degree_compass`, there 
+are more of them in WeeWX 5.X. `degree_compass` ist still there, but
+additionally there are `degree_angle` and `radian`.
+
+The same applies to unit groups. There was `group_direction`, which refers
+to the compass direction, and now there is also `group_angle`, which is
+used for altitude and declination. In WeeWX extensions you also find
+`group_coordinate`, which refers to the geographic coordinates latitude
+and longitude.
+
+Despite the compass direction originates at north, the unit `degree_compass`
+is used for other angles with other origins within WeeWX, too. They only have 
+in common that they are measured within the base plane of the respective 
+coordinate system.
+
 ## PyEphem and Skyfield
 
 If you install both PyEphem and Skyfield, Skyfield is preferred. If the
@@ -322,6 +339,9 @@ ephemerides. Both are subject to regular updates due to new measurements
 and/or scientific findings. Therefore Skyfield allows for downloading new 
 versions of those data. Once downloaded the files are re-used every
 time WeeWX starts.
+
+The files are located in `SQLITE_ROOT`, which is defined in `weewx.conf` in
+section `[DatabaseTypes]`, sub-section `[[SQLite]]`.
 
 ### Time scales
 
