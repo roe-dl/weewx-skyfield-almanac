@@ -16,7 +16,7 @@ PyEphem calculated values by Skyfield calculated values in existing skins.
 
 ## Prerequisites
 
-WeeWX from version 5.2 on is required.
+WeeWX from version 5.2 on and Skyfield from version 1.47 on is required.
 
 Install Skyfield and NumPy. If you used the packet installation of WeeWX
 this is for Debian-like distributions:

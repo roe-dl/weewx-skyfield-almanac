@@ -87,6 +87,7 @@ import weeutil
 
 # Import Skyfield modules
 import numpy
+from skyfield import VERSION as SKYFIELD_VERSION
 from skyfield import almanac
 from skyfield.api import N, S, E, W, Loader, wgs84
 from skyfield.earthlib import refraction
@@ -1045,4 +1046,5 @@ class LiveService(StdService):
         
     
 # log version info at startup
-loginf("%s version %s" % ("Skyfield almanac extension",VERSION))
+loginf("%s version %s" % ("WeeWX Skyfield almanac extension",VERSION))
+loginf("Skyfield version %s" % '.'.join([str(i) for i in SKYFIELD_VERSION]))
