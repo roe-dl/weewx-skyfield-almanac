@@ -40,7 +40,7 @@ srv = skyfieldalmanac.SkyfieldService(None,CONFIG)
 del weewx.almanac.almanacs[-1]
 print(weewx.almanac.almanacs)
 
-while skyfieldalmanac.eph is None:
+while skyfieldalmanac.sun_and_planets is None:
     time.sleep(1)
 
 print("day")

@@ -8,7 +8,7 @@ updated any more. It ends in 2018. Dates after that year are calculated
 by extrapolation.
 
 Skyfield is the successor of PyEphem. It is from the same author, Brandon
-Rhodes. It uses more modern and more precise formulae and actual ephemeris
+Rhodes. It uses more modern and more precise formulae and actual ephemerides
 provided by NASA's JPL.
 
 There is no other requirement than installing this extension to replace
@@ -18,7 +18,21 @@ PyEphem calculated values by Skyfield calculated values in existing skins.
 
 WeeWX from version 5.2 on is required.
 
-Install Skyfield and NumPy
+Install Skyfield and NumPy. If you used the packet installation of WeeWX
+this is for Debian-like distributions:
+
+```shell
+sudo apt-get install python3-numpy
+sudo apt-get install python3-skyfield
+```
+
+For pip-based installations this is:
+
+```shell
+source ~/weewx-venv/bin/activate
+pip install numpy
+pip install skyfield
+```
 
 ## Installation instructions
 
@@ -99,7 +113,7 @@ available if you have special requirements.
   If you specified an alternative source for the timescale file in 
   `timescale_url` and that URL is at an FTP server, you can switch
   on logging of the server responses in case of trouble.
-* `update_interval`: interval for updating ephemeris and timescale data
+* `update_interval`: interval for updating ephemerides and timescale data
   (set to 0 to switch off updates)
 * `enable_live_data`: enable live data for fast changing almanac values
   (default: on)
@@ -139,6 +153,7 @@ $almanac(almanac_time=time,            ## Unix epoch time
 If `almanac_time` is not specified, the actual time as returned by
 `$current.dateTime` is used.
 
+Latitude and longitude refer to the WGS84 ellipsoid as used by GPS.
 If `lat` and `lon` are not specified, the location of the station is used.
 
 ### Date and time
@@ -197,7 +212,7 @@ This extension provides the attributes described in the WeeWX customization
 guide, but calculated using Skyfield. Additionally it provides some
 extra attributes, that are not available with PyEphem.
 
-Depending on the ephemeris you chose you may be required to add
+Depending on the ephemerides you chose you may be required to add
 `_barycenter` to the name of a heavenly body to get results
 (for example `jupiter_barycenter`).
 
@@ -303,7 +318,7 @@ observation types if they are present in the LOOP packet.
 ## Base data for calculation
 
 Astronomic calculations require two kinds of base data: time scales and
-ephemeris. Both are subject to regular updates due to new measurements
+ephemerides. Both are subject to regular updates due to new measurements
 and/or scientific findings. Therefore Skyfield allows for downloading new 
 versions of those data. Once downloaded the files are re-used every
 time WeeWX starts.
@@ -328,9 +343,9 @@ the file mentioned above.
 Additionally that file contains information about polar motion, which
 is used for calculating the hour angle and the depending declination.
 
-### Ephemeris
+### Ephemerides
 
-There are no built-in ephemeris. You have to provide an ephemeris file
+There are no built-in ephemerides. You have to provide an ephemeris file
 or let this extension download it from JPL or another source.
 
 The commonly used ephemeris file `de440.bsp` covers the following

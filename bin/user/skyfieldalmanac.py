@@ -96,7 +96,7 @@ from skyfield.constants import DAY_S, DEG2RAD, RAD2DEG
 
 # Global variables
 ts = None
-eph = None
+sun_and_planets = None
 
 # Unit group and unit used for true solar time and local mean time
 for _, unitgroup in weewx.units.std_groups.items():
@@ -152,10 +152,14 @@ def skyfield_time_to_djd(ti):
     """
     return ti.ut1-ti.dut1/DAY_S-2415020.0
 
+def _get_body(body):
+    # Note: sun_and_planets['jupiter barycenter'] and sun_and_planets['jupiter_barycenter'] both work.
+    return sun_and_planets[body]
+
 def _get_observer(almanac_obj, target, use_center):
     """ get observer object and refraction angle """
     # a location on earth surface
-    observer = eph['Earth'] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
+    observer = sun_and_planets['Earth'] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
     # calculate refraction angle
     if almanac_obj.pressure or almanac_obj.horizon:
         horizon = almanac_obj.horizon
@@ -175,7 +179,7 @@ def _get_observer(almanac_obj, target, use_center):
         horizon -= refr
     else:
         horizon = None
-    return observer, horizon, eph[target.replace('_',' ')]
+    return observer, horizon, _get_body(target)
 
 
 class SkyfieldAlmanacType(AlmanacType):
@@ -200,14 +204,14 @@ class SkyfieldAlmanacType(AlmanacType):
         
             Depending on the ephemeris file chosen, Skyfield takes some time
             to initialize after the start of WeeWX. Initialization is 
-            finished when `eph` is not `None` any more.
+            finished when `sun_and_planets` is not `None` any more.
         
         """
-        return eph is not None
+        return sun_and_planets is not None
 
     def get_almanac_data(self, almanac_obj, attr):
         """ calculate attribute """
-        if ts is None or eph is None:
+        if ts is None or sun_and_planets is None:
             raise weewx.UnknownType(attr)
         time_ti = timestamp_to_skyfield_time(almanac_obj.time_ts)
         if attr=='sunrise':
@@ -217,7 +221,7 @@ class SkyfieldAlmanacType(AlmanacType):
         elif attr=='moon_fullness':
             return int(almanac_obj.moon.moon_fullness + 0.5)
         elif attr in ('moon_phase','moon_index'):
-            position = almanac.moon_phase(eph, time_ti).degrees/360.0
+            position = almanac.moon_phase(sun_and_planets, time_ti).degrees/360.0
             moon_index = int((position * 8) + 0.5) & 7
             if attr=='moon_index': return moon_index
             return almanac_obj.moon_phases[moon_index]
@@ -257,7 +261,7 @@ class SkyfieldAlmanacType(AlmanacType):
             t0 = timestamp_to_skyfield_time(almanac_obj.time_ts+t0)
             t1 = timestamp_to_skyfield_time(almanac_obj.time_ts+t1)
             # find the events
-            t, y  = almanac.find_discrete(t0,t1,func(eph))
+            t, y  = almanac.find_discrete(t0,t1,func(sun_and_planets))
             # in case of previous events search from the last event on
             if previous:
                 t = reversed(t)
@@ -325,11 +329,18 @@ class SkyfieldAlmanacType(AlmanacType):
                                 context="day",
                                 formatter=formatter,
                                 converter=almanac_obj.converter)
-        elif attr in eph:
-            # The attribute is a heavenly body (such as 'sun', or 'jupiter').
+        elif attr in sun_and_planets:
+            # The attribute is a heavenly body (such as 'sun', or 'venus').
             # Bind the almanac and the heavenly body together and return as an
             # SkyfieldAlmanacBinder
             return SkyfieldAlmanacBinder(almanac_obj, attr)
+        elif (attr.lower() in ('mars','jupiter','saturn','uranus','neptune','pluto') and 
+              attr+'_barycenter' in sun_and_planets):
+            # The attribute is a heavenly body (such as 'jupiter'), but its
+            # barycentre is available only. So map the name.
+            # Bind the almanac and the heavenly body together and return as an
+            # SkyfieldAlmanacBinder
+            return SkyfieldAlmanacBinder(almanac_obj, attr+'_barycenter')
         # `attr` is not provided by this extension. So raise an exception.
         raise weewx.UnknownType(attr)
 
@@ -403,8 +414,8 @@ class SkyfieldAlmanacBinder:
         if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
-            body = eph[self.heavenly_body.replace('_',' ')]
-            astrometric = eph['Earth'].at(t).observe(body)
+            body = _get_body(self.heavenly_body)
+            astrometric = sun_and_planets['Earth'].at(t).observe(body)
             if attr in ('geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
                 astrometric = astrometric.apparent()
             ra, dec, distance = astrometric.radec(epoch='date')
@@ -454,7 +465,7 @@ class SkyfieldAlmanacBinder:
             ti = timestamp_to_skyfield_time(self.almanac.time_ts)
             position = observer.at(ti).observe(body).apparent()
             if attr=='moon_fullness':
-                return position.fraction_illuminated(eph['sun'])*100.0
+                return position.fraction_illuminated(sun_and_planets['sun'])*100.0
             if attr in ('az','alt','alt_dist','azimuth','altitude','alt_distance'):
                 alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)
                 if attr=='az':
@@ -688,7 +699,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
 
     def init_skyfield(self):
         """ download ephemeris data or read them from file """
-        global ts, eph
+        global ts, sun_and_planets
         # instantiate the loader
         load = Loader(self.path,verbose=False)
         # get current time
@@ -715,16 +726,16 @@ class SkyfieldMaintenanceThread(threading.Thread):
             except OSError as e:
                 logerr("thread '%s': error downloading timescale %s - %s" % (self.name,e.__class__.__name__,e))
         # load ephemeris
-        if self.last_eph_update<=now or eph is None:
+        if self.last_eph_update<=now or sun_and_planets is None:
             try:
                 _eph = load(self.eph_file)
                 if _eph: 
-                    eph = _eph
+                    sun_and_planets = _eph
                     self.last_eph_update = time.time()
                     loginf("thread '%s': ephemeris initialized or updated" % self.name)
             except OSError as e:
                 logerr("thread '%s': error downloading ephemeris %s - %s" % (self.name,e.__class__.__name__,e))
-        # `eph` and `ts` are up to date if they were updated less than 24 
+        # `sun_and_planets` and `ts` are up to date if they were updated less than 24 
         # hours ago.
         return self.last_ts_update>now and self.last_eph_update>now
     
@@ -935,16 +946,16 @@ class LiveService(StdService):
     def calc_almanac(self, packet, archive):
         """ calculate solarAzimuth, solarAltitude, solarPath """
         # Do nothing until the Skyfield almanac ist initialized.
-        if eph is None: return
+        if sun_and_planets is None: return
         try:
-            sun = eph['Sun']
+            sun = sun_and_planets['Sun']
             # target unit system
             usUnits = packet['usUnits']
             # current timestamp
             ts = packet.get('dateTime',time.time())
             ti = timestamp_to_skyfield_time(ts)
             # observer's location
-            observer = eph['Earth'] + self.station
+            observer = sun_and_planets['Earth'] + self.station
             # apparent position of the sun in respect to the observer's location
             position = observer.at(ti).observe(sun).apparent()
             # solar altitude and azimuth
@@ -1006,10 +1017,10 @@ class LiveService(StdService):
             if latitude_vt is not None and longitude_vt is not None:
                 try:
                     alt = weewx.units.convert(latitude_vt,'meter')[0] if altitude_vt else 0.0
-                except (LookupError,ArithemticError,AttributeError,TypeError,ValueError):
+                except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError):
                     alt = 0.0
-                lat = weewx.units.convert(latitude_vt,'degree')[0]
-                lon = weewx.units.convert(longitude_vt,'degree')[0]
+                lat = weewx.units.convert(latitude_vt,'degree_angle')[0]
+                lon = weewx.units.convert(longitude_vt,'degree_compass')[0]
                 if lat is not None and lon is not None:
                     # Note: The default value of `elevation_m` is `0.0` not
                     #       `None`.

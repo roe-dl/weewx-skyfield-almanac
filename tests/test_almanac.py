@@ -44,7 +44,7 @@ srv = skyfieldalmanac.SkyfieldService(None,CONFIG)
 del weewx.almanac.almanacs[-1]
 print(weewx.almanac.almanacs)
 
-while skyfieldalmanac.eph is None:
+while skyfieldalmanac.sun_and_planets is None:
     time.sleep(1)
 
 
@@ -156,8 +156,8 @@ alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=
 #print(alm.sun.altitude,alm.sun.azimuth,alm.sun.alt,alm.sun.az)
 #print(alm.sun.visible)
 #print(alm.sun.visible_change())
-print(skyfieldalmanac.eph)
-print(alm.jupiter_barycenter.rise)
+print(skyfieldalmanac.sun_and_planets)
+print(alm.jupiter.rise)
 
 if __name__ == '__main__':
     unittest.main()
