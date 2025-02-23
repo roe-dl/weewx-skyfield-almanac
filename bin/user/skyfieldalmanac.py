@@ -643,6 +643,8 @@ class SkyfieldMaintenanceThread(threading.Thread):
                 path(str): directory where to save downloaded files
         """
         super(SkyfieldMaintenanceThread,self).__init__(name='SkyfieldMaintenanceThread')
+        self.log_success = alm_conf_dict['log_success']
+        self.log_failure = alm_conf_dict['log_failure']
         self.path = path
         logdbg("path to save Skyfield files: '%s'" % self.path)
         self.eph_file = alm_conf_dict.get('ephemeris','de440s.bsp')
@@ -812,11 +814,10 @@ class SkyfieldService(StdService):
         self.path = config_dict.get('DatabaseTypes',configobj.ConfigObj()).get('SQLite',configobj.ConfigObj()).get('SQLITE_ROOT','.')
         # configuration
         alm_conf_dict = _get_config(config_dict)
-        self.log_success = alm_conf_dict['log_success']
-        self.log_failure = alm_conf_dict['log_failure']
         if alm_conf_dict['enable']:
             # thread to initialize Skyfield
-            self.skyfield_thread = SkyfieldMaintenanceThread(alm_conf_dict,self.path)
+            self.skyfield_thread = SkyfieldMaintenanceThread(
+                                                      alm_conf_dict, self.path)
             self.skyfield_thread.start()
             # instantiate the Skyfield almanac
             self.skyfield_almanac = SkyfieldAlmanacType()
@@ -842,7 +843,14 @@ class SkyfieldService(StdService):
 
 
 class LiveService(StdService):
-    """ calculate solar values for live update (optional service) """
+    """ calculate solar values for live update (optional service) 
+    
+        Some skins do not only update the web pages once every archive 
+        interval but display live data out of LOOP packets. This service
+        adds the necessary observation types for fast changing almanac 
+        values to the LOOP packets and the ARCHIVE records for live updates.
+        It also supports mobile stations.
+    """
 
     def __init__(self, engine, config_dict):
         """ init """
@@ -857,9 +865,10 @@ class LiveService(StdService):
         try:
             self.altitude = weewx.units.convert(engine.stn_info.altitude_vt,'meter')[0]
         except (ValueError,TypeError,IndexError):
-            self.altitude = None
+            self.altitude = 0.0
         loginf("Altitude %s ==> %.0f m" % (engine.stn_info.altitude_vt,self.altitude))
         # station location
+        # Note: The default value of `elevation_m` is `0.0` not `None`.
         self.station = wgs84.latlon(engine.stn_info.latitude_f,
                                     engine.stn_info.longitude_f,
                                     elevation_m=self.altitude)
@@ -872,6 +881,7 @@ class LiveService(StdService):
         self.last_archive_outTemp = None # degree_C
         self.last_archive_pressure = None # mbar
         self.last_almanac_error = 0
+        self.last_mobile_error = 0
         self.sunrise = 0
         self.sunset = 0
         self.end_of_day = 0
@@ -882,6 +892,7 @@ class LiveService(StdService):
         logdbg("%s started" % self.__class__.__name__)
     
     def shutDown(self):
+        """ shutdown service """
         logdbg("%s stopped" % self.__class__.__name__)
     
     def new_loop_packet(self, event):
@@ -890,9 +901,14 @@ class LiveService(StdService):
         # the LOOP packet we assume the station to be mobile and set the
         # current location.
         try:
+            altitude_vt = weewx.units.as_value_tuple(event.packet,'altitude')
+        except LookupError:
+            altitude_vt = None
+        try:
             self.set_current_location(
                 weewx.units.as_value_tuple(event.packet,'latitude'),
-                weewx.units.as_value_tuple(event.packet,'longitude')
+                weewx.units.as_value_tuple(event.packet,'longitude'),
+                altitude_vt
             )
         except LookupError:
             pass
@@ -975,26 +991,34 @@ class LiveService(StdService):
             packet['solarPath'] = weewx.units.convertStd(ValueTuple(sp,'percent','group_percent'),usUnits)[0]
         except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError) as e:
             # report the error at most once every 5 minutes
-            if time.time()>=self.last_almanac_error+300:
-                logerr("almanac error: %s" % e)
+            if self.log_failure and time.time()>=self.last_almanac_error+300:
+                logerr("live almanac error: %s" % e)
                 self.last_almanac_error = time.time()
     
-    def set_current_location(self, latitude_vt, longitude_vt):
-        """ set current location in case of a mobile station """
-        if latitude_vt is not None and longitude_vt is not None:
-            # If there are `latitude` and `longitude` observation types
-            # in the LOOP packet, we assume the station to be mobile
-            # and set the station's location to the new values.
-            try:
+    def set_current_location(self, latitude_vt, longitude_vt, altitude_vt):
+        """ set current location in case of a mobile station 
+
+            If there are `latitude` and `longitude` observation types
+            in the LOOP packet, we assume the station to be mobile
+            and set the station's location to the new values.
+        """
+        try:
+            if latitude_vt is not None and longitude_vt is not None:
+                try:
+                    alt = weewx.units.convert(latitude_vt,'meter')[0] if altitude_vt else 0.0
+                except (LookupError,ArithemticError,AttributeError,TypeError,ValueError):
+                    alt = 0.0
                 lat = weewx.units.convert(latitude_vt,'degree')[0]
                 lon = weewx.units.convert(longitude_vt,'degree')[0]
                 if lat is not None and lon is not None:
-                    self.station = wgs84.latlon(latitude,longitude)
-            except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError) as e:
-                # report the error at most once every 5 minutes
-                if time.time()>=self.last_almanac_error+300:
-                    logerr("could not set new location: %s - %s" % (e.__class__.__name__,e))
-                    self.last_almanac_error = time.time()
+                    # Note: The default value of `elevation_m` is `0.0` not
+                    #       `None`.
+                    self.station = wgs84.latlon(lat,lon,elevation_m=alt)
+        except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError) as e:
+            # report the error at most once every 5 minutes
+            if self.log_failure and time.time()>=self.last_mobile_error+300:
+                logerr("could not set new location: %s - %s" % (e.__class__.__name__,e))
+                self.last_mobile_error = time.time()
         
     
 # log version info at startup
