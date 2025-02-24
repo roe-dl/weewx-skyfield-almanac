@@ -98,7 +98,8 @@ available if you have special requirements.
 ```
 
 * `enable`: Enable this almanac extension
-* `ephemeris`: Ephemeris file to use. Different files cover different
+* `ephemeris`: Ephemeris file or a list of ephemeris files to use. 
+  Different files cover different
   scopes of heavenly bodies. Some of those files are huge. See
   [Planets and their moons: JPL ephemeris files](https://rhodesmill.org/skyfield/planets.html)
   for details.

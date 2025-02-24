@@ -97,6 +97,7 @@ from skyfield.constants import DAY_S, DEG2RAD, RAD2DEG
 
 # Global variables
 ts = None
+ephemerides = None
 sun_and_planets = None
 
 # Unit group and unit used for true solar time and local mean time
@@ -155,12 +156,13 @@ def skyfield_time_to_djd(ti):
 
 def _get_body(body):
     # Note: sun_and_planets['jupiter barycenter'] and sun_and_planets['jupiter_barycenter'] both work.
-    return sun_and_planets[body]
+    global ephemerides
+    return ephemerides[body]
 
 def _get_observer(almanac_obj, target, use_center):
     """ get observer object and refraction angle """
     # a location on earth surface
-    observer = sun_and_planets['Earth'] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
+    observer = ephemerides['earth'] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
     # calculate refraction angle
     if almanac_obj.pressure or almanac_obj.horizon:
         horizon = almanac_obj.horizon
@@ -205,14 +207,14 @@ class SkyfieldAlmanacType(AlmanacType):
         
             Depending on the ephemeris file chosen, Skyfield takes some time
             to initialize after the start of WeeWX. Initialization is 
-            finished when `sun_and_planets` is not `None` any more.
+            finished when `ephemerides` is not `None` any more.
         
         """
-        return sun_and_planets is not None
+        return ephemerides is not None
 
     def get_almanac_data(self, almanac_obj, attr):
         """ calculate attribute """
-        if ts is None or sun_and_planets is None:
+        if ts is None or ephemerides is None:
             raise weewx.UnknownType(attr)
         time_ti = timestamp_to_skyfield_time(almanac_obj.time_ts)
         if attr=='sunrise':
@@ -330,18 +332,18 @@ class SkyfieldAlmanacType(AlmanacType):
                                 context="day",
                                 formatter=formatter,
                                 converter=almanac_obj.converter)
-        elif attr in sun_and_planets:
+        elif attr.lower() in ephemerides:
             # The attribute is a heavenly body (such as 'sun', or 'venus').
             # Bind the almanac and the heavenly body together and return as an
             # SkyfieldAlmanacBinder
-            return SkyfieldAlmanacBinder(almanac_obj, attr)
-        elif (attr.lower() in ('mars','jupiter','saturn','uranus','neptune','pluto') and 
-              attr+'_barycenter' in sun_and_planets):
+            return SkyfieldAlmanacBinder(almanac_obj, attr.lower())
+        elif (attr.lower()+'_barycenter' in ephemerides and 
+             attr in ('mars','jupiter','saturn','uranus','neptune','pluto')):
             # The attribute is a heavenly body (such as 'jupiter'), but its
             # barycentre is available only. So map the name.
             # Bind the almanac and the heavenly body together and return as an
             # SkyfieldAlmanacBinder
-            return SkyfieldAlmanacBinder(almanac_obj, attr+'_barycenter')
+            return SkyfieldAlmanacBinder(almanac_obj, attr.lower()+'_barycenter')
         # `attr` is not provided by this extension. So raise an exception.
         raise weewx.UnknownType(attr)
 
@@ -371,8 +373,23 @@ class SkyfieldAlmanacBinder:
         timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
         t0 = timestamp_to_skyfield_time(timespan[0])
         t1 = timestamp_to_skyfield_time(timespan[1])
-        tr, yr = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
-        tg, yg = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
+        if SKYFIELD_VERSION<(1,47):
+            # outdated function
+            t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, observer))
+            if len(t)==2 and y[0]==1 and y[1]==0:
+                tr = [t[0]]
+                tg = [t[1]]
+                yr = [True]
+                yg = [True]
+            else:
+                tr = []
+                tg = []
+                yr = [False]
+                yg = [False]
+        else:
+            # actual function
+            tr, yr = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
+            tg, yg = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
         if len(tr)<1 or len(tg)<1:
             visible = None
         elif yr[-1] and yg[-1]:
@@ -416,7 +433,7 @@ class SkyfieldAlmanacBinder:
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
-            astrometric = sun_and_planets['Earth'].at(t).observe(body)
+            astrometric = ephemerides['earth'].at(t).observe(body)
             if attr in ('geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
                 astrometric = astrometric.apparent()
             ra, dec, distance = astrometric.radec(epoch='date')
@@ -466,7 +483,7 @@ class SkyfieldAlmanacBinder:
             ti = timestamp_to_skyfield_time(self.almanac.time_ts)
             position = observer.at(ti).observe(body).apparent()
             if attr=='moon_fullness':
-                return position.fraction_illuminated(sun_and_planets['sun'])*100.0
+                return position.fraction_illuminated(ephemerides['sun'])*100.0
             if attr in ('az','alt','alt_dist','azimuth','altitude','alt_distance'):
                 alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)
                 if attr=='az':
@@ -541,37 +558,52 @@ class SkyfieldAlmanacBinder:
         if evt in ('rise','rising'):
             # rising
             try:
-                t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
-                if (t is not None and len(t)>=1 and 
-                        self.almanac.horizon==0 and 
-                        self.heavenly_body.lower()=='moon' and 
-                        not self.use_center):
-                    _, _, distance = observer.at(t).observe(body).apparent().hadec()
-                    horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
-                    horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
+                if SKYFIELD_VERSION<(1,47):
+                    t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, observer))
+                    t = [i for i,j in zip(t,y) if j==1]
+                    y = True
+                else:
                     t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
+                    if (t is not None and len(t)>=1 and 
+                            self.almanac.horizon==0 and 
+                            self.heavenly_body.lower()=='moon' and 
+                            not self.use_center):
+                        _, _, distance = observer.at(t).observe(body).apparent().hadec()
+                        horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
+                        horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
+                        t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
             except ValueError as e:
                 logerr("%s.%s: %s - %s" % (self.heavenly_body,attr,e.__class__.__name__,e))
                 t = None
         elif evt in ('set','setting'):
             # setting
             try:
-                t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
-                if (t is not None and len(t)>=1 and 
-                        self.almanac.horizon==0 and 
-                        self.heavenly_body.lower()=='moon' and 
-                        not self.use_center):
-                    _, _, distance = observer.at(t).observe(body).apparent().hadec()
-                    horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
-                    horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
+                if SKYFIELD_VERSION<(1,47):
+                    t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, observer))
+                    t = [i for i,j in zip(t,y) if j==0]
+                    y = True
+                else:
                     t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
+                    if (t is not None and len(t)>=1 and 
+                            self.almanac.horizon==0 and 
+                            self.heavenly_body.lower()=='moon' and 
+                            not self.use_center):
+                        _, _, distance = observer.at(t).observe(body).apparent().hadec()
+                        horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
+                        horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
+                        t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
             except ValueError as e:
                 logerr("%s.%s: %s - %s" % (self.heavenly_body,attr,e.__class__.__name__,e))
                 t = None
         elif evt=='transit':
             # meridian transit
-            t = almanac.find_transits(observer, body, t0, t1)
-            y = True
+            if SKYFIELD_VERSION<(1,47):
+                t, y = almanac.find_discrete(t0, t1, almanac.meridian_transits(sun_and_planets, body, observer))
+                t = [i for i,j in zip(t,y) if j==1]
+                y = len(t)>=1
+            else:
+                t = almanac.find_transits(observer, body, t0, t1)
+                y = True
         elif evt=='antitransit':
             # antitransit
             def az_degrees(t):
@@ -659,7 +691,13 @@ class SkyfieldMaintenanceThread(threading.Thread):
         self.log_failure = alm_conf_dict['log_failure']
         self.path = path
         logdbg("path to save Skyfield files: '%s'" % self.path)
-        self.eph_file = alm_conf_dict.get('ephemeris','de440s.bsp')
+        ephem_files = alm_conf_dict.get('ephemeris','de440s.bsp')
+        if isinstance(ephem_files,list):
+            self.eph_files = ephem_files
+            self.spk = [None]*len(ephem_files)
+        else:
+            self.eph_files = [ephem_files]
+            self.spk = [None]
         self.builtin = weeutil.weeutil.to_bool(alm_conf_dict.get('use_builtin_timescale',True))
         self.update_interval = weeutil.weeutil.to_int(alm_conf_dict.get('update_interval',31557600))
         if self.update_interval:
@@ -668,11 +706,12 @@ class SkyfieldMaintenanceThread(threading.Thread):
         self.ts_urls = alm_conf_dict.get('timescale_url',None)
         if self.ts_urls and not isinstance(self.ts_urls,list):
             self.ts_urls = [self.ts_urls]
-        loginf("ephemeris file: '%s', timescale: %s, update interval: %.2f days" % (self.eph_file,'builtin' if self.builtin else 'IERS file',self.update_interval/DAY_S))
+        loginf("timescale: %s, update interval: %.2f days" % ('builtin' if self.builtin else 'IERS file',self.update_interval/DAY_S))
+        loginf("ephemeris file(s): %s" % self.eph_files)
         self.evt = threading.Event()
         self.running = True
         self.last_ts_update = 0
-        self.last_eph_update = 0
+        self.last_eph_update = [0]*len(self.eph_files)
         logdbg("thread '%s': initialized" % self.name)
     
     def shutDown(self):
@@ -696,11 +735,13 @@ class SkyfieldMaintenanceThread(threading.Thread):
         except Exception as e:
             logerr("thread '%s': %s - %s" % (self.name,e.__class__.__name__,e))
         finally:
+            #ephemerides = None
+            #for _eph in self.spk: _eph.close()
             loginf("thread '%s': stopped" % self.name)
 
     def init_skyfield(self):
         """ download ephemeris data or read them from file """
-        global ts, sun_and_planets
+        global ts, ephemerides, sun_and_planets
         # instantiate the loader
         load = Loader(self.path,verbose=False)
         # get current time
@@ -713,11 +754,14 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     file = self.download(self.ts_urls,'timescale.tmp')
                     if file:
                         os.rename(file,os.path.join(self.path,TIMESCALE_FILE))
+                # Create timescale either from file or from builtin data
                 _ts = load.timescale(builtin=self.builtin)
-                if _ts: 
+                if _ts:
+                    s = 'initialized' if ts is None else 'updated'
                     ts = _ts
                     self.last_ts_update = time.time()
-                    loginf("thread '%s': timescale initialized or updated" % self.name)
+                    loginf("thread '%s': timescale %s" % (self.name,s))
+                # install polar motion data
                 if not self.builtin:
                     url = load.build_url(TIMESCALE_FILE)
                     with load.open(url) as f:
@@ -726,21 +770,45 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     loginf("thread '%s': installed polar motion table" % self.name)
             except OSError as e:
                 logerr("thread '%s': error downloading timescale %s - %s" % (self.name,e.__class__.__name__,e))
-        # load ephemeris
-        if self.last_eph_update<=now or sun_and_planets is None:
-            try:
-                _eph = load(self.eph_file)
-                if _eph: 
-                    sun_and_planets = _eph
-                    self.last_eph_update = time.time()
-                    loginf("thread '%s': ephemeris initialized or updated" % self.name)
-            except OSError as e:
-                logerr("thread '%s': error downloading ephemeris %s - %s" % (self.name,e.__class__.__name__,e))
-        # `sun_and_planets` and `ts` are up to date if they were updated less than 24 
-        # hours ago.
-        return self.last_ts_update>now and self.last_eph_update>now
+        # load ephemerides
+        ct = 0
+        for idx, file in enumerate(self.eph_files):
+            if self.last_eph_update[idx]<=now or self.spk[idx] is None:
+                try:
+                    # The last part of the path or URL is the file name.
+                    file_name = file.split('/')[-1]
+                    # Load the file
+                    _eph = load(file)
+                    if _eph:
+                        self.spk[idx] = _eph
+                        self.last_eph_update[idx] = time.time()
+                        ct += 1
+                except OSError as e:
+                    logerr("thread '%s': error downloading ephemeris %s - %s" % (self.name,e.__class__.__name__,e))
+        # merge ephemerides
+        if ct and self.spk[0] is not None:
+            _eph = dict()
+            _sem = None
+            for _spk in self.spk:
+                # get the bodies supported by this ephemeris
+                for nr,nm in _spk.names().items():
+                    attr = nm[0].lower()
+                    if attr not in _eph and nr!=0:
+                        _eph[attr] = _spk[nr]
+                # get the ephemeris that covers sun, earth, and moon
+                # required for seasons and moon phase calculation
+                if not _sem and 'sun' in _spk and 'earth' in _spk and 'moon' in _spk:
+                    _sem = _spk
+            s = 'initialized' if ephemerides is None else 'updated'
+            ephemerides = _eph
+            sun_and_planets = _sem
+            loginf("thread '%s': ephemerides %s" % (self.name,s))
+        # `ephemerides` and `ts` are up to date if they were updated less 
+        # than 24 hours ago.
+        return self.last_ts_update>now and min(self.last_eph_update)>now
     
     def download(self, urls, filename=None):
+        """ download file by FTP(S) or HTTP(S) """
         # try URLs in order
         for url in urls:
             x = url.split(':')[0].lower()
@@ -754,6 +822,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         return None
     
     def http_download(self, url, filename=None):
+        """ download file by HTTP(S) """
         try:
             # target path
             if filename is None:
@@ -947,16 +1016,16 @@ class LiveService(StdService):
     def calc_almanac(self, packet, archive):
         """ calculate solarAzimuth, solarAltitude, solarPath """
         # Do nothing until the Skyfield almanac ist initialized.
-        if sun_and_planets is None: return
+        if ephemerides is None: return
         try:
-            sun = sun_and_planets['Sun']
+            sun = ephemerides['sun']
             # target unit system
             usUnits = packet['usUnits']
             # current timestamp
             ts = packet.get('dateTime',time.time())
             ti = timestamp_to_skyfield_time(ts)
             # observer's location
-            observer = sun_and_planets['Earth'] + self.station
+            observer = ephemerides['earth'] + self.station
             # apparent position of the sun in respect to the observer's location
             position = observer.at(ti).observe(sun).apparent()
             # solar altitude and azimuth

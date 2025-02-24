@@ -33,7 +33,8 @@ CONFIG = configobj.ConfigObj({
   },
   'Almanac': {
     'Skyfield': {
-      'update_interval':0
+      'update_interval':0,
+      'ephemeris':['de440s.bsp','https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/mar097.bsp']
     }
   }
 })
@@ -156,8 +157,10 @@ alm = weewx.almanac.Almanac(TIME_TS,LATITUDE,LONGITUDE,altitude=169,temperature=
 #print(alm.sun.altitude,alm.sun.azimuth,alm.sun.alt,alm.sun.az)
 #print(alm.sun.visible)
 #print(alm.sun.visible_change())
-print(skyfieldalmanac.sun_and_planets)
+for i in srv.skyfield_thread.spk:
+    print(i)
 print(alm.jupiter.rise)
+print(alm.phobos.ra)
 
 if __name__ == '__main__':
     unittest.main()
