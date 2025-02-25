@@ -454,7 +454,8 @@ class SkyfieldAlmanacBinder:
                                                formatter=self.almanac.formatter,
                                                converter=self.almanac.converter)
         
-        observer, horizon, body = _get_observer(self.almanac,self.heavenly_body,self.use_center)
+        observer, horizon, body = _get_observer(
+                               self.almanac,self.heavenly_body,self.use_center)
 
         previous = attr.startswith('previous_')
         next = attr.startswith('next_')
@@ -554,12 +555,15 @@ class SkyfieldAlmanacBinder:
         # Note: In case of polar day or night, y is False and t is the time
         #       of transit or antitransit.
         
+        if SKYFIELD_VERSION<(1,47):
+            station = wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)
         t = None
         if evt in ('rise','rising'):
             # rising
             try:
                 if SKYFIELD_VERSION<(1,47):
-                    t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, observer))
+                    f = almanac.risings_and_settings(sun_and_planets, body, station)
+                    t, y = almanac.find_discrete(t0, t1, f)
                     t = [i for i,j in zip(t,y) if j==1]
                     y = True
                 else:
@@ -579,7 +583,8 @@ class SkyfieldAlmanacBinder:
             # setting
             try:
                 if SKYFIELD_VERSION<(1,47):
-                    t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, observer))
+                    f = almanac.risings_and_settings(sun_and_planets, body, station)
+                    t, y = almanac.find_discrete(t0, t1, f)
                     t = [i for i,j in zip(t,y) if j==0]
                     y = True
                 else:
@@ -598,7 +603,8 @@ class SkyfieldAlmanacBinder:
         elif evt=='transit':
             # meridian transit
             if SKYFIELD_VERSION<(1,47):
-                t, y = almanac.find_discrete(t0, t1, almanac.meridian_transits(sun_and_planets, body, observer))
+                f = almanac.meridian_transits(sun_and_planets, body, station)
+                t, y = almanac.find_discrete(t0, t1, f)
                 t = [i for i,j in zip(t,y) if j==1]
                 y = len(t)>=1
             else:
