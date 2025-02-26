@@ -1060,11 +1060,11 @@ class LiveService(StdService):
                     f = almanac.risings_and_settings(sun_and_planets, sun, self.station)
                     t, y = almanac.find_discrete(start_ti, end_ti, f)
                     h, _, _ = observer.at(t).observe(sun).apparent().hadec()
-                    for i,j in zip(h,y):
+                    for i,j in zip(h._degrees,y):
                         if j==1:
-                            self.sunrise = i._degrees
+                            self.sunrise = i
                         elif j==0:
-                            self.sunset = i._degrees
+                            self.sunset = i
                 else:
                     t, y = almanac.find_risings(observer,sun,start_ti,end_ti,horizon_degrees=horizon)
                     if y[0]:
