@@ -375,7 +375,7 @@ class SkyfieldAlmanacBinder:
         t1 = timestamp_to_skyfield_time(timespan[1])
         if SKYFIELD_VERSION<(1,47):
             # outdated function
-            t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, observer))
+            t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)))
             if len(t)==2 and y[0]==1 and y[1]==0:
                 tr = [t[0]]
                 tg = [t[1]]
@@ -1056,18 +1056,28 @@ class LiveService(StdService):
                 start_ts, end_ts = weeutil.weeutil.archiveDaySpan(ts)
                 start_ti = timestamp_to_skyfield_time(start_ts)
                 end_ti = timestamp_to_skyfield_time(end_ts)
-                t, y = almanac.find_risings(observer,sun,start_ti,end_ti,horizon_degrees=horizon)
-                if y[0]:
-                    h, _, _ = observer.at(t[0]).observe(sun).apparent().hadec()
-                    self.sunrise = h._degrees
+                if SKYFIELD_VERSION<(1,47):
+                    f = almanac.risings_and_settings(sun_and_planets, body, self.station)
+                    t, y = almanac.find_discrete(t0, t1, f)
+                    h, _, _ = observer.at(t).observe(sun).apparent().hadec()
+                    for i,j in zip(h,y):
+                        if j==1:
+                            self.sunrise = h._degrees
+                        elif j==0:
+                            self.sunset = h._degrees
                 else:
-                    self.sunrise = 0
-                t, y = almanac.find_settings(observer,sun,start_ti,end_ti,horizon_degrees=horizon)
-                if y[0]:
-                    h, _, _ = observer.at(t[0]).observe(sun).apparent().hadec()
-                    self.sunset = h._degrees
-                else:
-                    self.sunset = 0
+                    t, y = almanac.find_risings(observer,sun,start_ti,end_ti,horizon_degrees=horizon)
+                    if y[0]:
+                        h, _, _ = observer.at(t[0]).observe(sun).apparent().hadec()
+                        self.sunrise = h._degrees
+                    else:
+                        self.sunrise = 0
+                    t, y = almanac.find_settings(observer,sun,start_ti,end_ti,horizon_degrees=horizon)
+                    if y[0]:
+                        h, _, _ = observer.at(t[0]).observe(sun).apparent().hadec()
+                        self.sunset = h._degrees
+                    else:
+                        self.sunset = 0
                 self.end_of_day = end_ts
             if (self.sunrise and self.sunset and 
                           self.sunset>self.sunrise and 
