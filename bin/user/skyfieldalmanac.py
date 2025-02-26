@@ -1057,7 +1057,7 @@ class LiveService(StdService):
                 start_ti = timestamp_to_skyfield_time(start_ts)
                 end_ti = timestamp_to_skyfield_time(end_ts)
                 if SKYFIELD_VERSION<(1,47):
-                    f = almanac.risings_and_settings(sun_and_planets, body, self.station)
+                    f = almanac.risings_and_settings(sun_and_planets, sun, self.station)
                     t, y = almanac.find_discrete(t0, t1, f)
                     h, _, _ = observer.at(t).observe(sun).apparent().hadec()
                     for i,j in zip(h,y):
