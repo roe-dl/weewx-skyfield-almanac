@@ -1062,9 +1062,9 @@ class LiveService(StdService):
                     h, _, _ = observer.at(t).observe(sun).apparent().hadec()
                     for i,j in zip(h,y):
                         if j==1:
-                            self.sunrise = h._degrees
+                            self.sunrise = i._degrees
                         elif j==0:
-                            self.sunset = h._degrees
+                            self.sunset = i._degrees
                 else:
                     t, y = almanac.find_risings(observer,sun,start_ti,end_ti,horizon_degrees=horizon)
                     if y[0]:
