@@ -227,9 +227,12 @@ This extension provides the attributes described in the WeeWX customization
 guide, but calculated using Skyfield. Additionally it provides some
 extra attributes, that are not available with PyEphem.
 
+The sun as well as planets and their moons are referenced by their name.
 Depending on the ephemerides you chose you may be required to add
 `_barycenter` to the name of a heavenly body to get results
-(for example `jupiter_barycenter`).
+(for example `jupiter_barycenter`). Stars are referenced by their
+catalog number preceded by `HIP` (for example `HIP87937` for
+Barndard's Star).
 
 These events are supported for heavenly bodies in reference to the 
 location and the timestamp specified:

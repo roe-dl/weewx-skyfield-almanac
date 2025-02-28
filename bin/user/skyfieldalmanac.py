@@ -168,6 +168,9 @@ def skyfield_time_to_djd(ti):
 def _get_body(body):
     # Note: sun_and_planets['jupiter barycenter'] and sun_and_planets['jupiter_barycenter'] both work.
     global ephemerides
+    if body.startswith('HIP'):
+        x = weeutil.weeutil.to_int(body[3:])
+        return Star.from_dataframe(df.loc[x])
     return ephemerides[body]
 
 def _get_observer(almanac_obj, target, use_center):
@@ -345,16 +348,20 @@ class SkyfieldAlmanacType(AlmanacType):
                                 converter=almanac_obj.converter)
         elif attr.lower() in ephemerides:
             # The attribute is a heavenly body (such as 'sun', or 'venus').
-            # Bind the almanac and the heavenly body together and return as an
+            # Bind the almanac and the heavenly body together and return as a
             # SkyfieldAlmanacBinder
             return SkyfieldAlmanacBinder(almanac_obj, attr.lower())
         elif (attr.lower()+'_barycenter' in ephemerides and 
              attr in ('mars','jupiter','saturn','uranus','neptune','pluto')):
             # The attribute is a heavenly body (such as 'jupiter'), but its
             # barycentre is available only. So map the name.
-            # Bind the almanac and the heavenly body together and return as an
+            # Bind the almanac and the heavenly body together and return as a
             # SkyfieldAlmanacBinder
             return SkyfieldAlmanacBinder(almanac_obj, attr.lower()+'_barycenter')
+        elif attr.startswith('HIP') and attr[3:].isdigit():
+            # The attribute is a star. Bind the almanac and the star together
+            # and return as a SkyfieldAlmanacBinder.
+            return SkyfieldAlmanacBinder(almanac_obj, attr)
         # `attr` is not provided by this extension. So raise an exception.
         raise weewx.UnknownType(attr)
 
@@ -740,6 +747,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         self.running = True
         self.last_ts_update = 0
         self.last_eph_update = [0]*len(self.eph_files)
+        self.last_sat_update = dict()
         logdbg("thread '%s': initialized" % self.name)
     
     def shutDown(self):
@@ -835,19 +843,21 @@ class SkyfieldMaintenanceThread(threading.Thread):
         sats = dict()
         for file_name, url in self.earthsatellites.items():
             format = file_name.split('/')[-1].split('.')[-1].lower()
-            try:
-                tmpfile = self.download([url],'%s.tmp' % file_name)
-                if tmpfile:
-                    x = url.split('?')
-                    x = x[1] if len(x)>1 else ""
-                    for i in x.split('&'):
-                        j = i.split('=')
-                        if j[0].upper()=='FORMAT' and len(j)>1:
-                            format = j[1].lower()
-                            break
-                    os.rename(tmpfile,os.path.join(self.path,file_name))
-            except OSError as e:
-                logerr("thread '%s': error downloading satellites file '%s' to '%s': %s - %s" % (self.name,url,file_name,e.__class__.__name__,e))
+            if self.last_sat_update.get(file_name,0)<=now:
+                try:
+                    tmpfile = self.download([url],'%s.tmp' % file_name)
+                    if tmpfile:
+                        x = url.split('?')
+                        x = x[1] if len(x)>1 else ""
+                        for i in x.split('&'):
+                            j = i.split('=')
+                            if j[0].upper()=='FORMAT' and len(j)>1:
+                                format = j[1].lower()
+                                break
+                        os.rename(tmpfile,os.path.join(self.path,file_name))
+                        self.last_sat_update[file_name] = time.time()
+                except OSError as e:
+                    logerr("thread '%s': error downloading satellites file '%s' to '%s': %s - %s" % (self.name,url,file_name,e.__class__.__name__,e))
             try:
                 with load.open(file_name) as f:
                     if format=='json':
@@ -860,13 +870,14 @@ class SkyfieldMaintenanceThread(threading.Thread):
                 catname = file_name.split('.')[0]
                 x = {'%s_%s' % (catname,sat.model.satnum): sat for sat in x}
                 sats.update(x)
-                loginf("thread '%s': satellites file '%s' installed" % (self.name,file_name))
+                loginf("thread '%s': successfully processed satellites file '%s'" % (self.name,file_name))
             except (OSError,AttributeError,TypeError) as e:
                 logerr("thread '%s': error installing satellites file %s - %s" % (self.name,e.__class__.__name__,e))
-        ephemerides.update(sats)
-        loginf("thread '%s': %d earth satellite%s found" % (self.name,len(sats),'' if len(sats)==1 else 's'))
+        if ephemerides is not None:
+            ephemerides.update(sats)
+            loginf("thread '%s': %d earth satellite%s installed/updated" % (self.name,len(sats),'' if len(sats)==1 else 's'))
         # stars
-        if True:
+        if has_pandas:
             try:
                 file = self.download([skyfield.data.hipparcos.URL],'hip_main.tmp')
                 if file:
