@@ -34,6 +34,12 @@ pip install numpy
 pip install skyfield
 ```
 
+If you want to load star data, you additionally need the Pandas module:
+
+```shell
+sudo apt-get install python3-pandas
+```
+
 ## Installation instructions
 
 1) download
@@ -95,6 +101,10 @@ available if you have special requirements.
         update_interval = 31557600
         # enable LOOP packet augmentation
         enable_live_data = true
+        [[[EarthSatellites]]]
+            file_name1 = url1
+            file_name2 = url2
+            ...
 ```
 
 * `enable`: Enable this almanac extension
@@ -118,6 +128,10 @@ available if you have special requirements.
   (set to 0 to switch off updates)
 * `enable_live_data`: enable live data for fast changing almanac values
   (default: on)
+* `[[[EarthSatellites]]]`: This section contains earth satellite data files
+  to load. Each entry in the section contains of a file name and an URL
+  The file name is used when saved to disk. You can find such files
+  for example at [CelesTrak](https://celestrak.org/NORAD/elements/).
 
 ## Usage
 

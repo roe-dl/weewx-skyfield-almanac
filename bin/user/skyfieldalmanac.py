@@ -78,6 +78,7 @@ import os
 import os.path
 import requests
 from ftplib import FTP, FTP_TLS
+import json
 
 import weewx
 from weewx.almanac import AlmanacType, almanacs, timestamp_to_djd
@@ -89,16 +90,25 @@ import weeutil
 import numpy
 from skyfield import VERSION as SKYFIELD_VERSION
 from skyfield import almanac
-from skyfield.api import N, S, E, W, Loader, wgs84
+from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star
 from skyfield.earthlib import refraction
 from skyfield.searchlib import find_discrete, find_maxima
 from skyfield.data import iers
 from skyfield.constants import DAY_S, DEG2RAD, RAD2DEG
+from skyfield.iokit import parse_tle_file
+
+try:
+    import pandas
+    import skyfield.data.hipparcos
+    has_pandas = True
+except ImportError:
+    has_pandas = False
 
 # Global variables
 ts = None
 ephemerides = None
 sun_and_planets = None
+stars = None
 
 # Unit group and unit used for true solar time and local mean time
 for _, unitgroup in weewx.units.std_groups.items():
@@ -126,6 +136,7 @@ def _get_config(config_dict):
     alm_conf_dict['enable'] = weeutil.weeutil.to_bool(conf_dict.get('enable',True))
     alm_conf_dict['log_success'] = weeutil.weeutil.to_bool(alm_conf_dict.get('log_success',True))
     alm_conf_dict['log_failure'] = weeutil.weeutil.to_bool(alm_conf_dict.get('log_failure',True))
+    alm_conf_dict['EarthSatellites'] = conf_dict.get('EarthSatellites',configobj.ConfigObj())
     return alm_conf_dict
 
 def timestamp_to_skyfield_time(timestamp):
@@ -429,6 +440,12 @@ class SkyfieldAlmanacBinder:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
             raise AttributeError(attr)
         
+        if attr=='name':
+            body = _get_body(self.heavenly_body)
+            if isinstance(body,EarthSatellite):
+                return body.name
+            return self.heavenly_body
+        
         if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
@@ -482,7 +499,11 @@ class SkyfieldAlmanacBinder:
         else:
             # convert given timestamp
             ti = timestamp_to_skyfield_time(self.almanac.time_ts)
-            position = observer.at(ti).observe(body).apparent()
+            if isinstance(body,EarthSatellite):
+                station = wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)
+                position = (body-station).at(ti)
+            else:
+                position = observer.at(ti).observe(body).apparent()
             if attr=='moon_fullness':
                 return position.fraction_illuminated(ephemerides['sun'])*100.0
             if attr in ('az','alt','alt_dist','azimuth','altitude','alt_distance'):
@@ -712,6 +733,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         self.ts_urls = alm_conf_dict.get('timescale_url',None)
         if self.ts_urls and not isinstance(self.ts_urls,list):
             self.ts_urls = [self.ts_urls]
+        self.earthsatellites = alm_conf_dict['EarthSatellites']
         loginf("timescale: %s, update interval: %.2f days" % ('builtin' if self.builtin else 'IERS file',self.update_interval/DAY_S))
         loginf("ephemeris file(s): %s" % self.eph_files)
         self.evt = threading.Event()
@@ -747,7 +769,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
 
     def init_skyfield(self):
         """ download ephemeris data or read them from file """
-        global ts, ephemerides, sun_and_planets
+        global ts, ephemerides, sun_and_planets, stars
         # instantiate the loader
         load = Loader(self.path,verbose=False)
         # get current time
@@ -809,6 +831,55 @@ class SkyfieldMaintenanceThread(threading.Thread):
             ephemerides = _eph
             sun_and_planets = _sem
             loginf("thread '%s': ephemerides %s" % (self.name,s))
+        # load earth satellites
+        sats = dict()
+        for file_name, url in self.earthsatellites.items():
+            format = file_name.split('/')[-1].split('.')[-1].lower()
+            try:
+                tmpfile = self.download([url],'%s.tmp' % file_name)
+                if tmpfile:
+                    x = url.split('?')
+                    x = x[1] if len(x)>1 else ""
+                    for i in x.split('&'):
+                        j = i.split('=')
+                        if j[0].upper()=='FORMAT' and len(j)>1:
+                            format = j[1].lower()
+                            break
+                    os.rename(tmpfile,os.path.join(self.path,file_name))
+            except OSError as e:
+                logerr("thread '%s': error downloading satellites file '%s' to '%s': %s - %s" % (self.name,url,file_name,e.__class__.__name__,e))
+            try:
+                with load.open(file_name) as f:
+                    if format=='json':
+                        data = json.load(f)
+                        x = [EarthSatellite.from_omm(ts, fields) for fields in data]
+                    elif format=='tle':
+                        x = list(parse_tle_file(f,ts))
+                    else:
+                        raise TypeError('unknown file format %s' % format)
+                catname = file_name.split('.')[0]
+                x = {'%s_%s' % (catname,sat.model.satnum): sat for sat in x}
+                sats.update(x)
+                loginf("thread '%s': satellites file '%s' installed" % (self.name,file_name))
+            except (OSError,AttributeError,TypeError) as e:
+                logerr("thread '%s': error installing satellites file %s - %s" % (self.name,e.__class__.__name__,e))
+        ephemerides.update(sats)
+        loginf("thread '%s': %d earth satellite%s found" % (self.name,len(sats),'' if len(sats)==1 else 's'))
+        # stars
+        if True:
+            try:
+                file = self.download([skyfield.data.hipparcos.URL],'hip_main.tmp')
+                if file:
+                    os.rename(file,os.path.join(self.path,'hip_main.dat'))
+            except (OSError,AttributeError,TypeError) as e:
+                logerr("thread '%s': error downloading star catalog %s - %s" % (self.name,e.__class__.__name__,e))
+            try:
+                with load.open('hip_main.dat') as f:
+                    df = skyfield.data.hipparcos.load_dataframe(f)
+                    stars = df[df['ra_degrees'].notnull()]
+                    loginf("thread '%s': successfully installed star catalog" % self.name)
+            except (OSError,AttributeError,TypeError) as e:
+                logerr("thread '%s': error installing star catalog %s - %s" % (self.name,e.__class__.__name__,e))
         # `ephemerides` and `ts` are up to date if they were updated less 
         # than 24 hours ago.
         return self.last_ts_update>now and min(self.last_eph_update)>now
@@ -898,7 +969,10 @@ class SkyfieldService(StdService):
         global almanacs
         super(SkyfieldService,self).__init__(engine, config_dict)
         # directory to save ephemeris and IERS files
-        self.path = config_dict.get('DatabaseTypes',configobj.ConfigObj()).get('SQLite',configobj.ConfigObj()).get('SQLITE_ROOT','.')
+        sqlite_root = config_dict.get('DatabaseTypes',configobj.ConfigObj()).get('SQLite',configobj.ConfigObj()).get('SQLITE_ROOT','.')
+        path = os.path.join(sqlite_root,'skyfield')
+        if not os.path.isdir(path): os.mkdir(path)
+        self.path = path
         # configuration
         alm_conf_dict = _get_config(config_dict)
         if alm_conf_dict['enable']:
