@@ -33,5 +33,5 @@ class SkyfieldInstaller(ExtensionInstaller):
                     }
                 }
             },
-            files=[('bin/user', ['bin/user/skyfieldalmanac.py'])]
+            files=[('bin/user', ['bin/user/skyfieldalmanac.py','bin/user/starnames.dat'])]
         )

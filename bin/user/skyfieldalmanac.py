@@ -109,6 +109,7 @@ ts = None
 ephemerides = None
 sun_and_planets = None
 stars = None
+starnames = dict()
 
 # Unit group and unit used for true solar time and local mean time
 for _, unitgroup in weewx.units.std_groups.items():
@@ -428,19 +429,22 @@ class SkyfieldAlmanacBinder:
         """Change in visibility of the heavenly body compared to 'days_ago'.
            Copyright (C) Tom Keffer
         """
-        # Visibility for today:
-        today_visible = self.visible
-        # The time to compare to
-        then_time = self.almanac.time_ts - days_ago * 86400
-        # Get a new almanac, set up for the time back then
-        then_almanac = self.almanac(almanac_time=then_time)
-        # Find the visibility back then
-        then_visible = getattr(then_almanac, self.heavenly_body).visible
-        # Take the difference
-        if today_visible.raw is None or then_visible.raw is None:
+        try:
+         # Visibility for today:
+         today_visible = self.visible
+         # The time to compare to
+         then_time = self.almanac.time_ts - days_ago * 86400
+         # Get a new almanac, set up for the time back then
+         then_almanac = self.almanac(almanac_time=then_time)
+         # Find the visibility back then
+         then_visible = getattr(then_almanac, self.heavenly_body).visible
+         # Take the difference
+         if today_visible.raw is None or then_visible.raw is None:
             diff = None
-        else:
+         else:
             diff = today_visible.raw - then_visible.raw
+        except AttributeError:
+         diff=None
         return weewx.units.ValueHelper(ValueTuple(diff, "second", "group_deltatime"),
                                        context="hour",
                                        formatter=self.almanac.formatter,
@@ -767,6 +771,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         """ Skyfield database maintenance """
         loginf("thread '%s': starting" % (self.name,))
         try:
+            self.init_starnames()
             while self.running:
                 # initialize Skyfield or update its database
                 success = self.init_skyfield()
@@ -782,6 +787,21 @@ class SkyfieldMaintenanceThread(threading.Thread):
             #for _eph in self.spk: _eph.close()
             loginf("thread '%s': stopped" % self.name)
 
+    def init_starnames(self):
+        global starnames
+        try:
+            fn = os.path.dirname(os.path.realpath(__file__))
+            fn = os.path.join(fn,'starnames.dat')
+            with open(fn,'rt') as f:
+                for line in f:
+                    x = line.split('|')
+                    hip = weeutil.weeutil.to_float(x.pop(0))
+                    if x:
+                        starnames[hip] = x[0].strip()
+            loginf("thread '%s': successfully loaded starnames.dat" % self.name)
+        except (OSError,TypeError,ValueError) as e:
+            logerr("thread '%s': could not load '%s': %s - %s" % (self.name,fn,e.__class__.__name__,e))
+    
     def init_skyfield(self):
         """ download ephemeris data or read them from file """
         global ts, ephemerides, sun_and_planets, stars
@@ -1225,4 +1245,3 @@ class LiveService(StdService):
 # log version info at startup
 loginf("%s version %s" % ("WeeWX Skyfield almanac extension",VERSION))
 loginf("Skyfield version %s" % '.'.join([str(i) for i in SKYFIELD_VERSION]))
-loginf(__file__)
