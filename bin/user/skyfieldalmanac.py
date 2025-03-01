@@ -166,6 +166,10 @@ def skyfield_time_to_djd(ti):
     """
     return ti.ut1-ti.dut1/DAY_S-2415020.0
 
+def hip_to_starname(hip, default=None):
+    global starnames
+    return starnames.get(hip,default)
+
 def _get_body(body):
     # Note: sun_and_planets['jupiter barycenter'] and sun_and_planets['jupiter_barycenter'] both work.
     global ephemerides, stars
@@ -416,10 +420,11 @@ class SkyfieldAlmanacBinder:
         if len(tr)<1 or len(tg)<1:
             visible = None
         elif yr[-1] and yg[-1]:
-            visible = (tg.ut1-tr.ut1) * weewx.units.SECS_PER_DAY
+            visible = (tg[-1].ut1-tr[-1].ut1) * weewx.units.SECS_PER_DAY
         else:
             #TODO always up and always down
             visible = 0
+        loginf('visible %s' % visible)
         return weewx.units.ValueHelper(ValueTuple(visible, "second", "group_deltatime"),
                                        context="day",
                                        formatter=self.almanac.formatter,
@@ -429,22 +434,19 @@ class SkyfieldAlmanacBinder:
         """Change in visibility of the heavenly body compared to 'days_ago'.
            Copyright (C) Tom Keffer
         """
-        try:
-         # Visibility for today:
-         today_visible = self.visible
-         # The time to compare to
-         then_time = self.almanac.time_ts - days_ago * 86400
-         # Get a new almanac, set up for the time back then
-         then_almanac = self.almanac(almanac_time=then_time)
-         # Find the visibility back then
-         then_visible = getattr(then_almanac, self.heavenly_body).visible
-         # Take the difference
-         if today_visible.raw is None or then_visible.raw is None:
+        # Visibility for today:
+        today_visible = self.visible
+        # The time to compare to
+        then_time = self.almanac.time_ts - days_ago * 86400
+        # Get a new almanac, set up for the time back then
+        then_almanac = self.almanac(almanac_time=then_time)
+        # Find the visibility back then
+        then_visible = getattr(then_almanac, self.heavenly_body).visible
+        # Take the difference
+        if today_visible.raw is None or then_visible.raw is None:
             diff = None
-         else:
+        else:
             diff = today_visible.raw - then_visible.raw
-        except AttributeError:
-         diff=None
         return weewx.units.ValueHelper(ValueTuple(diff, "second", "group_deltatime"),
                                        context="hour",
                                        formatter=self.almanac.formatter,
