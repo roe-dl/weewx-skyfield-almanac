@@ -424,7 +424,6 @@ class SkyfieldAlmanacBinder:
         else:
             #TODO always up and always down
             visible = 0
-        loginf('visible %s' % visible)
         return weewx.units.ValueHelper(ValueTuple(visible, "second", "group_deltatime"),
                                        context="day",
                                        formatter=self.almanac.formatter,
@@ -462,6 +461,12 @@ class SkyfieldAlmanacBinder:
         
         if attr=='name':
             body = _get_body(self.heavenly_body)
+            if isinstance(body,Star):
+                # If `_get_body()` returned an instance of class `Star`,
+                # we know for sure that `self.heavenly_body` starts
+                # with `HIP`.
+                hip = weeutil.weeutil.to_int(self.heavenly_body[3:])
+                return hip_to_starname(hip,self.heavenly_body)
             if isinstance(body,EarthSatellite):
                 return body.name
             return self.heavenly_body
@@ -603,9 +608,14 @@ class SkyfieldAlmanacBinder:
             # rising
             try:
                 if SKYFIELD_VERSION<(1,47):
-                    f = almanac.risings_and_settings(sun_and_planets, body, station)
+                    if self.heavenly_body=='sun' and horizon<(-0.8333):
+                        f = almanac.dark_twilight_day(sun_and_planets, station)
+                        what = int(4+horizon/6.0)
+                    else:
+                        f = almanac.risings_and_settings(sun_and_planets, body, station)
+                        what = 1
                     t, y = almanac.find_discrete(t0, t1, f)
-                    t = [i for i,j in zip(t,y) if j==1]
+                    t = [i for i,j in zip(t,y) if j==what]
                     y = True
                 else:
                     t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)

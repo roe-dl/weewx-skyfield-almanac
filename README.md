@@ -265,6 +265,7 @@ WeeWX datatype | Pure float result | Meaning
 `ha_distance`  | `ha_dist`         | distance in referenc to the coordinate system of the hour angle
 `max_altitude` | `max_alt`         | maximum altitude
 `max_alt_time` | &mdash;           | timestamp of the maximum altitude
+&mdash;        | `name`            | language independent name of the celestial object
 
 And these attributes are supported by both core WeeWX using PyEphem and
 this extension using Skyfield:
