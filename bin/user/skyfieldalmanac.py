@@ -167,10 +167,10 @@ def skyfield_time_to_djd(ti):
 
 def _get_body(body):
     # Note: sun_and_planets['jupiter barycenter'] and sun_and_planets['jupiter_barycenter'] both work.
-    global ephemerides
+    global ephemerides, stars
     if body.startswith('HIP'):
         x = weeutil.weeutil.to_int(body[3:])
-        return Star.from_dataframe(df.loc[x])
+        return Star.from_dataframe(stars.loc[x])
     return ephemerides[body]
 
 def _get_observer(almanac_obj, target, use_center):
@@ -393,17 +393,21 @@ class SkyfieldAlmanacBinder:
         t1 = timestamp_to_skyfield_time(timespan[1])
         if SKYFIELD_VERSION<(1,47):
             # outdated function
-            t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)))
-            if len(t)==2 and y[0]==1 and y[1]==0:
+            try:
+             t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)))
+             if len(t)==2 and y[0]==1 and y[1]==0:
                 tr = [t[0]]
                 tg = [t[1]]
                 yr = [True]
                 yg = [True]
-            else:
+             else:
                 tr = []
                 tg = []
                 yr = [False]
                 yg = [False]
+            except Exception as e:
+             logerr('visible %s %s' % (e.__class__.__name__,e))
+             tr, tg = [],[]
         else:
             # actual function
             tr, yr = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
@@ -433,7 +437,10 @@ class SkyfieldAlmanacBinder:
         # Find the visibility back then
         then_visible = getattr(then_almanac, self.heavenly_body).visible
         # Take the difference
-        diff = today_visible.raw - then_visible.raw
+        if today_visible.raw is None or then_visible.raw is None:
+            diff = None
+        else:
+            diff = today_visible.raw - then_visible.raw
         return weewx.units.ValueHelper(ValueTuple(diff, "second", "group_deltatime"),
                                        context="hour",
                                        formatter=self.almanac.formatter,
@@ -1218,3 +1225,4 @@ class LiveService(StdService):
 # log version info at startup
 loginf("%s version %s" % ("WeeWX Skyfield almanac extension",VERSION))
 loginf("Skyfield version %s" % '.'.join([str(i) for i in SKYFIELD_VERSION]))
+loginf(__file__)

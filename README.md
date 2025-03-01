@@ -231,8 +231,8 @@ The sun as well as planets and their moons are referenced by their name.
 Depending on the ephemerides you chose you may be required to add
 `_barycenter` to the name of a heavenly body to get results
 (for example `jupiter_barycenter`). Stars are referenced by their
-catalog number preceded by `HIP` (for example `HIP87937` for
-Barndard's Star).
+Hipparcos catalog number preceded by `HIP` (for example `HIP87937` for
+Barnard's Star).
 
 These events are supported for heavenly bodies in reference to the 
 location and the timestamp specified:
@@ -279,6 +279,21 @@ WeeWX datatype | Pure float result | Meaning
 `geo_dec` | `g_dec` | apparent geocentric declination
 `topo_ra` | `ra` | apparent topocentric right ascension
 `topo_dec` | `dec` | apparent topocentric declination
+
+Try
+
+```
+#import user.skyfieldalmanac
+#set $keys = [key for key in user.skyfieldalmanac.ephemerides]
+$keys
+```
+
+if you look for a list of names available as heavenly body.
+
+### Maps
+
+If you want to draw sky maps you may want to install the
+[WeeWX sky map extension](https://github.com/roe-dl/weewx-skymap-almanac).
 
 ### Coordinate systems
 
@@ -448,9 +463,12 @@ A: There is nothing to do. Installing this extension is enough. But you
 
 * [WeeWX](https://weewx.com)
 * [Skyfield](https://rhodesmill.org/skyfield/)
+* [WeeWX sky map extension](https://github.com/roe-dl/weewx-skymap-almanac)
 * [International Earth Rotation and Reference Service IERS](https://iers.org)
   (provides the timescale file `finals2000A.all`)
 * [Jet Propulsion Laboratory JPL](https://www.jpl.nasa.gov)
   (provides the ephemeris files)
 * [Issue #981: PyEphem is deprecated](https://github.com/weewx/weewx/issues/981)
 * [International Terrestrial Reference System ITRS](https://en.wikipedia.org/wiki/International_Terrestrial_Reference_System_and_Frame)
+* [ESA's Hipparcos mission and catalog](https://www.cosmos.esa.int/web/hipparcos/home)
+* [CelesTrak](https://celestrak.org)
