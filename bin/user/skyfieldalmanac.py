@@ -96,6 +96,7 @@ from skyfield.searchlib import find_discrete, find_maxima
 from skyfield.data import iers
 from skyfield.constants import DAY_S, DEG2RAD, RAD2DEG
 from skyfield.iokit import parse_tle_file
+from skyfield.magnitudelib import planetary_magnitude
 
 try:
     import pandas
@@ -474,33 +475,49 @@ class SkyfieldAlmanacBinder:
                 return body.name
             return self.heavenly_body
         
+        if attr=='sun_distance':
+            t = timestamp_to_skyfield_time(self.almanac.time_ts)
+            body = _get_body(self.heavenly_body)
+            astrometric = ephemerides['sun'].at(t).observe(body)
+            return astrometric.distance().au
+            
         if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist',
-                    'earth_distance'):
+                    'earth_distance','elong','elongation','mag'):
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
             astrometric = ephemerides['earth'].at(t).observe(body)
             if attr in ('geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
                 astrometric = astrometric.apparent()
-            ra, dec, distance = astrometric.radec(epoch='date')
-            if attr in ('a_ra','g_ra'):
-                return ra._degrees
-            elif attr in ('a_dec','g_dec'):
-                return dec.degrees
-            elif attr in ('a_dist','g_dist'):
-                return distance.km
-            elif attr=='earth_distance':
-                return distance.au
-            if attr in ('astro_ra','geo_ra'):
-                vt = ValueTuple(ra._degrees,'degree_compass','group_direction')
-            elif attr in ('astro_dec','geo_dec'):
-                vt = ValueTuple(dec.radians,'radian','group_angle')
+            if attr in ('elong','elongation'):
+                phase_angle = astrometric.phase_angle(ephemerides['sun'])
+                if attr=='elong':
+                    return phase_angle.degrees
+                vt = ValueTuple(phase_angle.radians,'radian','group_angle')
+            elif attr=='mag':
+                if isinstance(body,Star):
+                    return stars.loc[int(self.heavenly_body[3:])]['magnitude']
+                return planetary_magnitude(astrometric)
             else:
-                vt = ValueTuple(distance.km,'km','group_distance')
+                ra, dec, distance = astrometric.radec(epoch='date')
+                if attr in ('a_ra','g_ra'):
+                    return ra._degrees
+                elif attr in ('a_dec','g_dec'):
+                    return dec.degrees
+                elif attr in ('a_dist','g_dist'):
+                    return distance.km
+                elif attr=='earth_distance':
+                    return distance.au
+                if attr in ('astro_ra','geo_ra'):
+                    vt = ValueTuple(ra._degrees,'degree_compass','group_direction')
+                elif attr in ('astro_dec','geo_dec'):
+                    vt = ValueTuple(dec.radians,'radian','group_angle')
+                else:
+                    vt = ValueTuple(distance.km,'km','group_distance')
             return ValueHelper(vt,
-                                               context="ephem_day",
-                                               formatter=self.almanac.formatter,
-                                               converter=self.almanac.converter)
+                               context="ephem_day",
+                               formatter=self.almanac.formatter,
+                               converter=self.almanac.converter)
         
         observer, horizon, body = _get_observer(
                                self.almanac,self.heavenly_body,self.use_center)

@@ -280,6 +280,10 @@ WeeWX datatype | Pure float result | Meaning
 `geo_dec` | `g_dec` | apparent geocentric declination
 `topo_ra` | `ra` | apparent topocentric right ascension
 `topo_dec` | `dec` | apparent topocentric declination
+`elongation` | `elong` | angle with sun
+&mdash; | `earth_distance` | astrometric distance to the earth in astronomic units (AU)
+&mdash; | `sun_distance` | astrometric distance to the sun in astronomic units (AU)
+&mdash; | `mag` | magnitude
 
 Try
 
