@@ -179,6 +179,7 @@ def _get_body(body):
     return ephemerides[body]
 
 def _get_observer(almanac_obj, target, use_center):
+    global ephemerides
     """ get observer object and refraction angle """
     # a location on earth surface
     observer = ephemerides['earth'] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
@@ -229,10 +230,12 @@ class SkyfieldAlmanacType(AlmanacType):
             finished when `ephemerides` is not `None` any more.
         
         """
+        global ephemerides
         return ephemerides is not None
 
     def get_almanac_data(self, almanac_obj, attr):
         """ calculate attribute """
+        global ephemerides
         if ts is None or ephemerides is None:
             raise weewx.UnknownType(attr)
         time_ti = timestamp_to_skyfield_time(almanac_obj.time_ts)
@@ -453,7 +456,7 @@ class SkyfieldAlmanacBinder:
 
     def __getattr__(self, attr):
         """Get the requested observation, such as when the body will rise."""
-
+        global ephemerides
         # Don't try any attributes that start with a double underscore, or any of these
         # special names: they are used by the Python language:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
@@ -472,7 +475,8 @@ class SkyfieldAlmanacBinder:
             return self.heavenly_body
         
         if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
-                    'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
+                    'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist',
+                    'earth_distance'):
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
             astrometric = ephemerides['earth'].at(t).observe(body)
@@ -485,6 +489,8 @@ class SkyfieldAlmanacBinder:
                 return dec.degrees
             elif attr in ('a_dist','g_dist'):
                 return distance.km
+            elif attr=='earth_distance':
+                return distance.au
             if attr in ('astro_ra','geo_ra'):
                 vt = ValueTuple(ra._degrees,'degree_compass','group_direction')
             elif attr in ('astro_dec','geo_dec'):
@@ -1145,6 +1151,7 @@ class LiveService(StdService):
     
     def calc_almanac(self, packet, archive):
         """ calculate solarAzimuth, solarAltitude, solarPath """
+        global ephemerides
         # Do nothing until the Skyfield almanac ist initialized.
         if ephemerides is None: return
         try:
