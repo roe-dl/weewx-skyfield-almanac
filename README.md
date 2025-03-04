@@ -295,6 +295,52 @@ $keys
 
 if you look for a list of names available as heavenly body.
 
+`$almanac.planets` provides a list of available planets. If you want to
+display a table of the planets and their data you could do it that way:
+
+```
+    #from weewx.units import ValueTuple, ValueHelper
+    <p>
+    <table>
+    <tr>
+    <th>$gettext('Planet')</th>
+    <th>$pgettext('Astronomical','Altitude')</th>
+    <th>$gettext('Azimuth')</th>
+    <th>$gettext('Right ascension')</th>
+    <th>$gettext('Declination')</th>
+    <th>$gettext('Distance')</th>
+    <th>$gettext('Magnitude')</th>
+    <th>$gettext('Rise')</th>
+    <th>$gettext('Set')</th>
+    <th>$gettext('Distance from sun')</th>
+    <th>
+    </tr>
+    #for $planet in $almanac.planets
+    #set $binder = $getattr($almanac,$planet)
+    <tr>
+    <td>$pgettext('Astronomical',$planet)</td>
+    <td style="text-align:right">$binder.altitude</td>
+    <td>$binder.azimuth $binder.azimuth.ordinal_compass</td>
+    #set $ra_vh = $ValueHelper(ValueTuple($binder.topo_ra.raw/15.0 if $binder.topo_ra.raw is not None else None,None,None),'day',formatter=$station.formatter)
+    <td style="text-align:right">$ra_vh.format("%.1f") h</td>
+    <td style="text-align:right">$binder.topo_dec</td>
+    <td style="text-align:right">$binder.topo_dist</td>
+    #set $mag_vh = $ValueHelper(ValueTuple($binder.mag,None,None),'day',formatter=$station.formatter)
+    <td style="text-align:right">$mag_vh.format("%.1f")</td>
+    <td>$binder.rise</td>
+    <td>$binder.set</td>
+    #set sund_vh = $ValueHelper(ValueTuple($binder.sun_distance,None,None),'day',formatter=$station.formatter)
+    <td>$sund_vh.format("%.2f") AU</td>
+    </tr>
+    #end for
+    </table>
+    </p>
+```
+
+If you want to have the names of the planets in your local language, put
+them in the language file of your skin in section `[[Astronomcial]]` 
+with lines the way `english_name_as_shown_in_table = local_name`
+
 ### Maps
 
 If you want to draw sky maps you may want to install the

@@ -111,6 +111,7 @@ ephemerides = None
 sun_and_planets = None
 stars = None
 starnames = dict()
+planets_list = []
 
 # Unit group and unit used for true solar time and local mean time
 for _, unitgroup in weewx.units.std_groups.items():
@@ -236,7 +237,7 @@ class SkyfieldAlmanacType(AlmanacType):
 
     def get_almanac_data(self, almanac_obj, attr):
         """ calculate attribute """
-        global ephemerides
+        global ephemerides, planets_list
         if ts is None or ephemerides is None:
             raise weewx.UnknownType(attr)
         time_ti = timestamp_to_skyfield_time(almanac_obj.time_ts)
@@ -251,6 +252,8 @@ class SkyfieldAlmanacType(AlmanacType):
             moon_index = int((position * 8) + 0.5) & 7
             if attr=='moon_index': return moon_index
             return almanac_obj.moon_phases[moon_index]
+        elif attr=='planets':
+            return planets_list
         elif attr in {'previous_equinox', 'next_equinox',
                       'previous_solstice', 'next_solstice',
                       'previous_autumnal_equinox', 'next_autumnal_equinox',
@@ -472,8 +475,13 @@ class SkyfieldAlmanacBinder:
                 hip = weeutil.weeutil.to_int(self.heavenly_body[3:])
                 return hip_to_starname(hip,self.heavenly_body)
             if isinstance(body,EarthSatellite):
+                # There is always a name attached to an earth satellite,
+                # and it is language independent.
                 return body.name
-            return self.heavenly_body
+            # If no other source of the name is available, use the name
+            # of the attribute that specifies the heavenly body which
+            # is mostly the English name of it.
+            return self.heavenly_body.split('_')[0].capitalize()
         
         if attr=='sun_distance':
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
@@ -497,7 +505,10 @@ class SkyfieldAlmanacBinder:
             elif attr=='mag':
                 if isinstance(body,Star):
                     return stars.loc[int(self.heavenly_body[3:])]['magnitude']
-                return planetary_magnitude(astrometric)
+                try:
+                    return float(planetary_magnitude(astrometric))
+                except (ValueError,TypeError):
+                    return None
             else:
                 ra, dec, distance = astrometric.radec(epoch='date')
                 if attr in ('a_ra','g_ra'):
@@ -804,17 +815,29 @@ class SkyfieldMaintenanceThread(threading.Thread):
     
     def run(self):
         """ Skyfield database maintenance """
+        stars_ok = False
+        starnames_ok = False
+        next_update = 0
         loginf("thread '%s': starting" % (self.name,))
         try:
-            self.init_starnames()
             while self.running:
+                # initialize list of star names (once at startup)
+                if not starnames_ok:
+                    starnames_ok = self.init_starnames()
                 # initialize Skyfield or update its database
-                success = self.init_skyfield()
-                logdbg("thread '%s': Initialization/update was%s successful." % (self.name,'' if success else ' not'))
+                if next_update<time.time():
+                    success = self.init_skyfield()
+                    logdbg("thread '%s': Initialization/update was%s successful." % (self.name,'' if success else ' not'))
+                    if success: next_update = time.time()+self.update_interval
+                # initialize/update earth satellite data (every day)
+                sats_success = self.init_earth_satellites()
+                # initialize star data (once at startup)
+                if not stars_ok:
+                    stars_ok = self.init_stars()
                 # If no updating is required, the thread can be closed now.
                 if not self.update_interval: break
                 # Wait for the update interval to pass.
-                self.evt.wait(self.update_interval if success else 300)
+                self.evt.wait(86400 if success and sats_success and starnames_ok and stars_ok else 300)
         except Exception as e:
             logerr("thread '%s': %s - %s" % (self.name,e.__class__.__name__,e))
         finally:
@@ -823,6 +846,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
             loginf("thread '%s': stopped" % self.name)
 
     def init_starnames(self):
+        """ init star names dictionary """
         global starnames
         try:
             fn = os.path.dirname(os.path.realpath(__file__))
@@ -834,12 +858,14 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     if x:
                         starnames[hip] = x[0].strip()
             loginf("thread '%s': successfully loaded starnames.dat" % self.name)
+            return True
         except (OSError,TypeError,ValueError) as e:
             logerr("thread '%s': could not load '%s': %s - %s" % (self.name,fn,e.__class__.__name__,e))
+            return False
     
     def init_skyfield(self):
         """ download ephemeris data or read them from file """
-        global ts, ephemerides, sun_and_planets, stars
+        global ts, ephemerides, sun_and_planets, planets_list
         # instantiate the loader
         load = Loader(self.path,verbose=False)
         # get current time
@@ -897,10 +923,33 @@ class SkyfieldMaintenanceThread(threading.Thread):
                 # required for seasons and moon phase calculation
                 if not _sem and 'sun' in _spk and 'earth' in _spk and 'moon' in _spk:
                     _sem = _spk
+            _pl = []
+            for planet in ('mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'):
+                if planet in _eph:
+                    _pl.append(planet)
+                elif ('%s_barycenter' % planet) in _eph:
+                    _pl.append('%s_barycenter' % planet)
             s = 'initialized' if ephemerides is None else 'updated'
             ephemerides = _eph
             sun_and_planets = _sem
+            planets_list = _pl
             loginf("thread '%s': ephemerides %s" % (self.name,s))
+        # `ephemerides` and `ts` are up to date if they were updated less 
+        # than 24 hours ago.
+        return self.last_ts_update>now and min(self.last_eph_update)>now
+
+    def init_earth_satellites(self):
+        """ initialize earth satellites data
+        
+            Earth satellite ephemerides become out of date very fast.
+        """
+        global ephemerides
+        if ephemerides is None: return False
+        # instantiate the loader
+        load = Loader(self.path,verbose=False)
+        rtn = True
+        # get current time
+        now = time.time()-86400
         # load earth satellites
         sats = dict()
         for file_name, url in self.earthsatellites.items():
@@ -920,6 +969,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
                         self.last_sat_update[file_name] = time.time()
                 except OSError as e:
                     logerr("thread '%s': error downloading satellites file '%s' to '%s': %s - %s" % (self.name,url,file_name,e.__class__.__name__,e))
+                    rtn = False
             try:
                 with load.open(file_name) as f:
                     if format=='json':
@@ -935,9 +985,16 @@ class SkyfieldMaintenanceThread(threading.Thread):
                 loginf("thread '%s': successfully processed satellites file '%s'" % (self.name,file_name))
             except (OSError,AttributeError,TypeError) as e:
                 logerr("thread '%s': error installing satellites file %s - %s" % (self.name,e.__class__.__name__,e))
-        if ephemerides is not None:
-            ephemerides.update(sats)
-            loginf("thread '%s': %d earth satellite%s installed/updated" % (self.name,len(sats),'' if len(sats)==1 else 's'))
+                rtn = False
+        ephemerides.update(sats)
+        loginf("thread '%s': %d earth satellite%s installed/updated" % (self.name,len(sats),'' if len(sats)==1 else 's'))
+        return rtn
+    
+    def init_stars(self):
+        global stars
+        rtn = True
+        # instantiate the loader
+        load = Loader(self.path,verbose=False)
         # stars
         if has_pandas:
             try:
@@ -946,6 +1003,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     os.rename(file,os.path.join(self.path,'hip_main.dat'))
             except (OSError,AttributeError,TypeError) as e:
                 logerr("thread '%s': error downloading star catalog %s - %s" % (self.name,e.__class__.__name__,e))
+                rtn = False
             try:
                 with load.open('hip_main.dat') as f:
                     df = skyfield.data.hipparcos.load_dataframe(f)
@@ -953,9 +1011,8 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     loginf("thread '%s': successfully installed star catalog" % self.name)
             except (OSError,AttributeError,TypeError) as e:
                 logerr("thread '%s': error installing star catalog %s - %s" % (self.name,e.__class__.__name__,e))
-        # `ephemerides` and `ts` are up to date if they were updated less 
-        # than 24 hours ago.
-        return self.last_ts_update>now and min(self.last_eph_update)>now
+                rtn = False
+        return rtn
     
     def download(self, urls, filename=None):
         """ download file by FTP(S) or HTTP(S) """
