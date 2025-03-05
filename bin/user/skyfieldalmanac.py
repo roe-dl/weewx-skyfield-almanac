@@ -491,12 +491,16 @@ class SkyfieldAlmanacBinder:
             
         if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist',
-                    'earth_distance','elong','elongation','mag'):
+                    'earth_distance','elong','elongation','mag',
+                    'sublat','sublong','sublatitude','sublongitude'):
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
-            astrometric = ephemerides['earth'].at(t).observe(body)
-            if attr in ('geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
-                astrometric = astrometric.apparent()
+            if isinstance(body,EarthSatellite):
+                astrometric = body.at(t)
+            else:
+                astrometric = ephemerides['earth'].at(t).observe(body)
+                if attr in ('geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
+                    astrometric = astrometric.apparent()
             if attr in ('elong','elongation'):
                 phase_angle = astrometric.phase_angle(ephemerides['sun'])
                 if attr=='elong':
@@ -509,6 +513,17 @@ class SkyfieldAlmanacBinder:
                     return float(planetary_magnitude(astrometric))
                 except (ValueError,TypeError):
                     return None
+            elif attr in ('sublat','sublong','sublatitude','sublongitude'):
+                # https://rhodesmill.org/skyfield/coordinates.html#geographic-itrs-latitude-and-longitude
+                point = wgs84.geographic_position_of(astrometric)
+                if attr=='sublat':
+                    return point.latitude.degrees
+                elif attr=='sublong':
+                    return point.longitude.degrees
+                elif attr=='sublatitude':
+                    vt = ValueTuple(point.latitude.radians,'radian','group_angle')
+                elif attr=='sublongitude':
+                    vt = ValueTuple(point.longitude.degrees,'degree_compass','group_direction')
             else:
                 ra, dec, distance = astrometric.radec(epoch='date')
                 if attr in ('a_ra','g_ra'):

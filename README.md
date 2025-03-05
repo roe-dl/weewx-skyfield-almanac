@@ -132,6 +132,7 @@ available if you have special requirements.
   to load. Each entry in the section contains of a file name and an URL
   The file name is used when saved to disk. You can find such files
   for example at [CelesTrak](https://celestrak.org/NORAD/elements/).
+  See section [Earth satellites](#earth_satellites) for more datails.
 
 ## Usage
 
@@ -281,6 +282,8 @@ WeeWX datatype | Pure float result | Meaning
 `topo_ra` | `ra` | apparent topocentric right ascension
 `topo_dec` | `dec` | apparent topocentric declination
 `elongation` | `elong` | angle with sun
+`sublatitude` | `sublat` | latitude below an earth satellite
+`sublongitude` | `sublong` | longitude below an earth satellite
 &mdash; | `earth_distance` | astrometric distance to the earth in astronomic units (AU)
 &mdash; | `sun_distance` | astrometric distance to the sun in astronomic units (AU)
 &mdash; | `mag` | magnitude
@@ -340,6 +343,37 @@ display a table of the planets and their data you could do it that way:
 If you want to have the names of the planets in your local language, put
 them in the language file of your skin in section `[[Astronomcial]]` 
 with lines the way `english_name_as_shown_in_table = local_name`
+
+### Earth satellites
+
+What is said about [Heavenly bodies](#heavenly_bodies) generally applies
+to earth satellites, too. Here is some special information for that kind
+of heavenly objects.
+
+To get information of an earth satellite you first have to load an ephemerides 
+file. For example, if you want the position of weather satellites, use
+
+```
+            weather.tle = https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle
+```
+
+When that file is successfully loaded and processed you can refer to a
+satellite out of it by concatenating the name of the file (this time
+`weather`), an underscore, and the catalog number of the satellite. For 
+example, for the METEOSAT-10 satellite this would be `weather_38552`. 
+Then, if you want to see the location on earth directly below the 
+satellite you would write
+
+```
+Latitude: $almanac.weather_38552.sublatitude.format("%.3f")
+Longitude: $almananc.weather_38552.sublongitude.format("%.3f")
+```
+
+Please note that this one is a geostationary satellite. So the position
+varies a little bit only. You see it if you format the output with 
+decimals as shown above.
+
+See section [Heavenly bodies](#heavenly_bodies) for more attributes to use.
 
 ### Maps
 
