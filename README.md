@@ -132,7 +132,7 @@ available if you have special requirements.
   to load. Each entry in the section contains of a file name and an URL
   The file name is used when saved to disk. You can find such files
   for example at [CelesTrak](https://celestrak.org/NORAD/elements/).
-  See section [Earth satellites](#earth_satellites) for more datails.
+  See section [Earth satellites](#earth-satellites) for more datails.
 
 ## Usage
 
@@ -216,6 +216,8 @@ Previous event | Next event |
 `previous_first_quarter_moon` | `next_first_quarter_moon`
 `previous_full_moon` | `next_full_moon`
 `previous_last_quarter_moon` | `next_last_quarter_moon`
+`previous_perihelion` | `next_perihelion`
+`previous_aphelion` | `next_aphelion`
 
 Example:
 ```
@@ -264,8 +266,8 @@ WeeWX datatype | Pure float result | Meaning
 `hour angle`   | `ha`              | topocentric hour angle
 `ha_declination` | `ha_dec`        | declination in reference to the coordinate system of the hour angle
 `ha_distance`  | `ha_dist`         | distance in referenc to the coordinate system of the hour angle
-`max_altitude` | `max_alt`         | maximum altitude
-`max_alt_time` | &mdash;           | timestamp of the maximum altitude
+`day_max_altitude` | `day_max_alt` | maximum altitude of the day
+`day_max_alt_time` | &mdash;       | timestamp of the maximum altitude of the day
 &mdash;        | `name`            | language independent name of the celestial object
 
 And these attributes are supported by both core WeeWX using PyEphem and
@@ -346,7 +348,7 @@ with lines the way `english_name_as_shown_in_table = local_name`
 
 ### Earth satellites
 
-What is said about [Heavenly bodies](#heavenly_bodies) generally applies
+What is said about [Heavenly bodies](#heavenly-bodies) generally applies
 to earth satellites, too. Here is some special information for that kind
 of heavenly objects.
 

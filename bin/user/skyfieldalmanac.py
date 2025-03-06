@@ -92,7 +92,7 @@ from skyfield import VERSION as SKYFIELD_VERSION
 from skyfield import almanac
 from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star
 from skyfield.earthlib import refraction
-from skyfield.searchlib import find_discrete, find_maxima
+from skyfield.searchlib import find_discrete, find_maxima, find_minima
 from skyfield.data import iers
 from skyfield.constants import DAY_S, DEG2RAD, RAD2DEG
 from skyfield.iokit import parse_tle_file
@@ -300,6 +300,35 @@ class SkyfieldAlmanacType(AlmanacType):
                 if yi in event:
                     djd = skyfield_time_to_djd(ti)
                     break
+            return weewx.units.ValueHelper(ValueTuple(djd, "dublin_jd", "group_time"),
+                                           context="ephem_year",
+                                           formatter=almanac_obj.formatter,
+                                           converter=almanac_obj.converter)
+        elif attr in ('previous_aphelion','next_aphelion',
+                      'previous_perihelion','next_perihelion'):
+            if attr.startswith('previous_'):
+                t0 = -31557600
+                t1 = 0
+                idx = -1
+            else:
+                t0 = 0
+                t1 = 31557600
+                idx = 0
+            # time interval to look for events
+            t0 = timestamp_to_skyfield_time(almanac_obj.time_ts+t0)
+            t1 = timestamp_to_skyfield_time(almanac_obj.time_ts+t1)
+            # function
+            earth = ephemerides['earth']
+            sun = ephemerides['sun']
+            def func(t):
+                return earth.at(t).observe(sun).apparent().distance().km
+            func.step_days = 1
+            # find event
+            if attr.endswith('aphelion'):
+                t, v = find_maxima(t0, t1, func)
+            else:
+                t, v = find_minima(t0, t1, func)
+            djd = skyfield_time_to_djd(t)
             return weewx.units.ValueHelper(ValueTuple(djd, "dublin_jd", "group_time"),
                                            context="ephem_year",
                                            formatter=almanac_obj.formatter,
@@ -563,7 +592,7 @@ class SkyfieldAlmanacBinder:
             t1 = timestamp_to_skyfield_time(self.almanac.time_ts+86400)
             evt = attr[5:]
             idx = 0
-        elif attr in ('rise','set','transit','antitransit','max_alt','max_alt_time','max_altitude'):
+        elif attr in ('rise','set','transit','antitransit','day_max_alt','day_max_alt_time','day_max_altitude'):
             # get the event within the day the timestamp is in
             timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
             t0 = timestamp_to_skyfield_time(timespan[0])
@@ -726,16 +755,16 @@ class SkyfieldAlmanacBinder:
                     t = t[0:1]
                     val = val[0:1]
             y = len(t)>=1
-        elif evt in ('max_alt','max_alt_time','max_altitude'):
+        elif evt in ('day_max_alt','day_max_alt_time','day_max_altitude'):
             def alt_degrees(t):
                 position = observer.at(t).observe(body).apparent()
                 alt, _, _ = position.altaz()
                 return alt.radians
             alt_degrees.step_days = 0.5
             t, val = find_maxima(t0, t1, alt_degrees)
-            if evt=='max_alt' or evt=='max_altitude':
+            if evt=='day_max_alt' or evt=='day_max_altitude':
                 val = val[-1] if len(val)>=1 else None
-                if evt=='max_alt': return val
+                if evt=='day_max_alt': return val
                 return ValueHelper(ValueTuple(val,"radian","group_angle"),
                                    context="day",
                                    formatter=self.almanac.formatter,
