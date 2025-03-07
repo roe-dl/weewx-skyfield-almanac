@@ -16,13 +16,18 @@ PyEphem calculated values by Skyfield calculated values in existing skins.
 
 ## Prerequisites
 
-WeeWX from version 5.2 on and Skyfield from version 1.47 on is required.
+WeeWX from version 5.2 on ist required and 
+Skyfield from version 1.47 on is recommended.
 
-Install Skyfield and NumPy. If you used the packet installation of WeeWX
+Install Skyfield and NumPy. If you want to load star data you additionally
+need the Pandas modules, otherwise you can leave it out.
+
+If you used the packet installation of WeeWX
 this is for Debian-like distributions:
 
 ```shell
 sudo apt-get install python3-numpy
+sudo apt-get install python3-pandas
 sudo apt-get install python3-skyfield
 ```
 
@@ -31,13 +36,8 @@ For pip-based installations this is:
 ```shell
 source ~/weewx-venv/bin/activate
 pip install numpy
+pip install pandas
 pip install skyfield
-```
-
-If you want to load star data, you additionally need the Pandas module:
-
-```shell
-sudo apt-get install python3-pandas
 ```
 
 ## Installation instructions
@@ -108,11 +108,12 @@ available if you have special requirements.
 ```
 
 * `enable`: Enable this almanac extension
-* `ephemeris`: Ephemeris file or a list of ephemeris files to use. 
-  Different files cover different
-  scopes of heavenly bodies. Some of those files are huge. See
+* `ephemeris`: Ephemeris (or SPICE kernel) file or a list of such files to use.
+  Different files cover different scopes of heavenly bodies and/or different
+  time spans. Some of those files are huge. See
+  [Ephemerides](#ephemerides) and
   [Planets and their moons: JPL ephemeris files](https://rhodesmill.org/skyfield/planets.html)
-  for details.
+  for more details. 
 * `use_builtin_timescale`: Use builtin timescale data or download them
   from IERS. See [UT1 and downloading IERS data](https://rhodesmill.org/skyfield/time.html#ut1-and-downloading-iers-data)
   for details.
@@ -375,7 +376,7 @@ Please note that this one is a geostationary satellite. So the position
 varies a little bit only. You see it if you format the output with 
 decimals as shown above.
 
-See section [Heavenly bodies](#heavenly_bodies) for more attributes to use.
+See section [Heavenly bodies](#heavenly-bodies) for more attributes to use.
 
 ### Maps
 
@@ -486,7 +487,8 @@ is used for calculating the hour angle and the depending declination.
 ### Ephemerides
 
 There are no built-in ephemerides. You have to provide an ephemeris file
-or let this extension download it from JPL or another source.
+or a list of such files or let this extension download it from JPL or 
+another source. Such files are commonly called "SPICE kernels".
 
 The commonly used ephemeris file `de440.bsp` covers the following
 astronomic objects:
@@ -509,6 +511,31 @@ SPICE kernel file 'de440.bsp' has 14 segments
       1 -> 199  MERCURY BARYCENTER -> MERCURY
       2 -> 299  VENUS BARYCENTER -> VENUS
 ```
+
+Moons of planets other than the Earth you find at JPL's site in the
+directory "satellites". Ceres and other dwarf planets you find
+there in the directory "asteroids". 
+
+### Earth satellites and space debris
+
+The orbital data of earth satellites are published as so-called
+TLE files. Their name comes from "two line element" and refers to the
+ancient two punched cards originally used for that data.
+The main source of such files is the
+[CelesTrak](https://celestrak.org) site. Another source is
+[SPACE-TRACK](https://www.space-track.org) of USSPACECOM, but it
+requires registration. TLEs for the weather satellites of EUMETSAT
+you find at [their website](https://service.eumetsat.int/tle/).
+
+Orbital data of earth satellites regularly become out of date very fast. It 
+is no use to calculate the positions of such satellites without updating the 
+files every day. Therefore this extension sets the download interval for 
+those files to one day regardless of the download interval set in
+configuration for the ephemeris files.
+
+The object identification number is unique. The only reason it is 
+connected to the file name here is to make it possible to use one
+single format specification for a whole set of satellites.
 
 ## FAQ
 

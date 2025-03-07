@@ -105,6 +105,15 @@ try:
 except ImportError:
     has_pandas = False
 
+# Constants
+# Note: Despite Pluto misses the current definition of a planet, it is
+#       included in JPL's ephemeris files of planets. Therefore it is
+#       included here, too.
+PLANETS = ('mercury','venus','earth','mars','jupiter','saturn','uranus','neptune','pluto')
+SUN = 'sun'
+EARTH = PLANETS[2]
+EARTHMOON = 'moon'
+
 # Global variables
 ts = None
 ephemerides = None
@@ -184,7 +193,7 @@ def _get_observer(almanac_obj, target, use_center):
     global ephemerides
     """ get observer object and refraction angle """
     # a location on earth surface
-    observer = ephemerides['earth'] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
+    observer = ephemerides[EARTH] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
     # calculate refraction angle
     if almanac_obj.pressure or almanac_obj.horizon:
         horizon = almanac_obj.horizon
@@ -193,7 +202,7 @@ def _get_observer(almanac_obj, target, use_center):
         # at your own.
         # https://github.com/skyfielders/python-skyfield/discussions/1042
         if not use_center and horizon>-1.0:
-            if target.lower()=='sun': horizon -= 16.0/60.0
+            if target.lower()==SUN: horizon -= 16.0/60.0
         # `refraction()` returns the influence of refraction only. It does
         # not include the horizon into the result.
         refr = refraction(
@@ -318,8 +327,8 @@ class SkyfieldAlmanacType(AlmanacType):
             t0 = timestamp_to_skyfield_time(almanac_obj.time_ts+t0)
             t1 = timestamp_to_skyfield_time(almanac_obj.time_ts+t1)
             # function
-            earth = ephemerides['earth']
-            sun = ephemerides['sun']
+            earth = ephemerides[EARTH]
+            sun = ephemerides[SUN]
             def func(t):
                 return earth.at(t).observe(sun).apparent().distance().km
             func.step_days = 1
@@ -515,7 +524,7 @@ class SkyfieldAlmanacBinder:
         if attr=='sun_distance':
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
-            astrometric = ephemerides['sun'].at(t).observe(body)
+            astrometric = ephemerides[SUN].at(t).observe(body)
             return astrometric.distance().au
             
         if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
@@ -527,11 +536,11 @@ class SkyfieldAlmanacBinder:
             if isinstance(body,EarthSatellite):
                 astrometric = body.at(t)
             else:
-                astrometric = ephemerides['earth'].at(t).observe(body)
+                astrometric = ephemerides[EARTH].at(t).observe(body)
                 if attr in ('geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
                     astrometric = astrometric.apparent()
             if attr in ('elong','elongation'):
-                phase_angle = astrometric.phase_angle(ephemerides['sun'])
+                phase_angle = astrometric.phase_angle(ephemerides[SUN])
                 if attr=='elong':
                     return phase_angle.degrees
                 vt = ValueTuple(phase_angle.radians,'radian','group_angle')
@@ -608,7 +617,7 @@ class SkyfieldAlmanacBinder:
             else:
                 position = observer.at(ti).observe(body).apparent()
             if attr=='moon_fullness':
-                return position.fraction_illuminated(ephemerides['sun'])*100.0
+                return position.fraction_illuminated(ephemerides[SUN])*100.0
             if attr in ('az','alt','alt_dist','azimuth','altitude','alt_distance'):
                 alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)
                 if attr=='az':
@@ -686,7 +695,7 @@ class SkyfieldAlmanacBinder:
             # rising
             try:
                 if SKYFIELD_VERSION<(1,47):
-                    if self.heavenly_body=='sun' and horizon<(-0.8333):
+                    if self.heavenly_body==SUN and horizon<(-0.8333):
                         f = almanac.dark_twilight_day(sun_and_planets, station)
                         what = int(4+horizon/6.0)
                     else:
@@ -699,7 +708,7 @@ class SkyfieldAlmanacBinder:
                     t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
                     if (t is not None and len(t)>=1 and 
                             self.almanac.horizon==0 and 
-                            self.heavenly_body.lower()=='moon' and 
+                            self.heavenly_body.lower()==EARTHMOON and 
                             not self.use_center):
                         _, _, distance = observer.at(t).observe(body).apparent().hadec()
                         horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
@@ -720,7 +729,7 @@ class SkyfieldAlmanacBinder:
                     t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
                     if (t is not None and len(t)>=1 and 
                             self.almanac.horizon==0 and 
-                            self.heavenly_body.lower()=='moon' and 
+                            self.heavenly_body.lower()==EARTHMOON and 
                             not self.use_center):
                         _, _, distance = observer.at(t).observe(body).apparent().hadec()
                         horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
@@ -963,17 +972,29 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     attr = nm[0].lower()
                     if attr not in _eph and nr!=0:
                         _eph[attr] = _spk[nr]
-                # get the ephemeris that covers sun, earth, and moon
+                # get the ephemeris set that covers sun, earth, and moon
                 # required for seasons and moon phase calculation
-                if not _sem and 'sun' in _spk and 'earth' in _spk and 'moon' in _spk:
+                if (not _sem and 
+                          SUN in _spk and EARTH in _spk and EARTHMOON in _spk):
                     _sem = _spk
+            # Get a list of planets available in loaded ephemerides
             _pl = []
-            for planet in ('mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'):
+            for planet in PLANETS:
+                if planet==EARTH:
+                    # Because the coordinate systems used here refer to the
+                    # Earth, it is excluded from the list.
+                    continue
                 if planet in _eph:
+                    # The available ephemerides contain the planet itself.
+                    # So include it here.
                     _pl.append(planet)
                 elif ('%s_barycenter' % planet) in _eph:
+                    # The available ephemerides contain the planet's barycentre 
+                    # only. So use it instead.
                     _pl.append('%s_barycenter' % planet)
+            # Is it the first run or some consecutive run?
             s = 'initialized' if ephemerides is None else 'updated'
+            # Set the global variables
             ephemerides = _eph
             sun_and_planets = _sem
             planets_list = _pl
@@ -1273,14 +1294,14 @@ class LiveService(StdService):
         # Do nothing until the Skyfield almanac ist initialized.
         if ephemerides is None: return
         try:
-            sun = ephemerides['sun']
+            sun = ephemerides[SUN]
             # target unit system
             usUnits = packet['usUnits']
             # current timestamp
             ts = packet.get('dateTime',time.time())
             ti = timestamp_to_skyfield_time(ts)
             # observer's location
-            observer = ephemerides['earth'] + self.station
+            observer = ephemerides[EARTH] + self.station
             # apparent position of the sun in respect to the observer's location
             position = observer.at(ti).observe(sun).apparent()
             # solar altitude and azimuth
