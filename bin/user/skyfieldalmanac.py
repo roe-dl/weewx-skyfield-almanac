@@ -119,7 +119,8 @@ ts = None
 ephemerides = None
 sun_and_planets = None
 stars = None
-starnames = dict()
+starnames = dict() # HIP number to name
+starids = dict()   # name to HIP number
 planets_list = []
 
 # Unit group and unit used for true solar time and local mean time
@@ -407,11 +408,19 @@ class SkyfieldAlmanacType(AlmanacType):
             # barycentre is available only. So map the name.
             # Bind the almanac and the heavenly body together and return as a
             # SkyfieldAlmanacBinder
-            return SkyfieldAlmanacBinder(almanac_obj, attr.lower()+'_barycenter')
+            return SkyfieldAlmanacBinder(almanac_obj,
+                                                    attr.lower()+'_barycenter')
         elif attr.startswith('HIP') and attr[3:].isdigit():
             # The attribute is a star. Bind the almanac and the star together
             # and return as a SkyfieldAlmanacBinder.
             return SkyfieldAlmanacBinder(almanac_obj, attr)
+        elif attr.capitalize() in starids:
+            # PyEphem maintains a list of 115 wellknown stars by name.
+            # To replace PyEphem, name resolution for star names is required
+            # here, too. Unfortunately the Hipparcos catalog does not contain
+            # names at all.
+            return SkyfieldAlmanacBinder(almanac_obj,
+                                          'HIP%s' % starids[attr.capitalize()])
         # `attr` is not provided by this extension. So raise an exception.
         raise weewx.UnknownType(attr)
 
@@ -504,6 +513,8 @@ class SkyfieldAlmanacBinder:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
             raise AttributeError(attr)
         
+        # The `name` attribute is supported by the PyEphem almanac, too, but
+        # it is not documented in the customization guide of WeeWX.
         if attr=='name':
             body = _get_body(self.heavenly_body)
             if isinstance(body,Star):
@@ -521,6 +532,14 @@ class SkyfieldAlmanacBinder:
             # is mostly the English name of it.
             return self.heavenly_body.split('_')[0].capitalize()
         
+        if attr=='hip_number':
+            if self.heavenly_body.startswith('HIP') and self.heavenly_body[3:].isdigit():
+                return weeutil.weeutil.to_int(self.heavenly_body[3:])
+            else:
+                return None
+        
+        # The `sun_distance` attribute is supported by the PyEphem almanac, 
+        # too, but it is not documented in the customization guide of WeeWX.
         if attr=='sun_distance':
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
@@ -900,7 +919,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
 
     def init_starnames(self):
         """ init star names dictionary """
-        global starnames
+        global starnames, starids
         try:
             fn = os.path.dirname(os.path.realpath(__file__))
             fn = os.path.join(fn,'starnames.dat')
@@ -910,6 +929,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     hip = weeutil.weeutil.to_float(x.pop(0))
                     if x:
                         starnames[hip] = x[0].strip()
+                        if x[0]: starids[x[0].strip()] = hip
             loginf("thread '%s': successfully loaded starnames.dat" % self.name)
             return True
         except (OSError,TypeError,ValueError) as e:

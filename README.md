@@ -1,6 +1,31 @@
 # weewx-skyfield-almanac
 Almanac extension to WeeWX using Skyfield module
 
+## Contents
+
+* [Why should I use this extension?](#why-should-i-use-this-extension)
+* [Prerequisites](#prerequisites)
+* [Installation instructions](#installation-instructions)
+* [Configuration instructions](#configuration-instructions)
+* [Usage](#usage)
+* [Customization of WeeWX using this extension](#custimization-of-weewx-using-this-extension)
+  * [Date and time](#date-and-time)
+  * [Calendar events](#calendar-events)
+  * [Heavenly bodies](#heavenly-bodies)
+  * [Earth satellites](#earth-satellites)
+  * [Maps](#maps)
+  * [Coordinate systems](#coordinate-systems)
+  * [Units](#units)
+* [PyEphem and Skyfield](#pyephem-and-skyfield)
+* [Live data](#live-data)
+* [Base data for calculation](#base-data-for-calculation)
+  * [Time scales](#time-scales)
+  * [Ephemerides](#ephemerides)
+  * [Earth satellites and space debris](#earth-satellites-and-space-debris)
+  * [Stars](#stars)
+* [FAQ](#faq)
+* [Links](#links)
+
 ## Why should I use this extension?
 
 PyEphem is deprecated. Its astronomical database is outdated and won't get
@@ -20,7 +45,7 @@ WeeWX from version 5.2 on ist required and
 Skyfield from version 1.47 on is recommended.
 
 Install Skyfield and NumPy. If you want to load star data you additionally
-need the Pandas modules, otherwise you can leave it out.
+need the Pandas module, otherwise you can leave it out.
 
 If you used the packet installation of WeeWX
 this is for Debian-like distributions:
@@ -236,7 +261,8 @@ Depending on the ephemerides you chose you may be required to add
 `_barycenter` to the name of a heavenly body to get results
 (for example `jupiter_barycenter`). Stars are referenced by their
 Hipparcos catalog number preceded by `HIP` (for example `HIP87937` for
-Barnard's Star).
+Barnard's Star). Some wellknown stars can also be referenced by their
+name.
 
 These events are supported for heavenly bodies in reference to the 
 location and the timestamp specified:
@@ -269,7 +295,7 @@ WeeWX datatype | Pure float result | Meaning
 `ha_distance`  | `ha_dist`         | distance in referenc to the coordinate system of the hour angle
 `day_max_altitude` | `day_max_alt` | maximum altitude of the day
 `day_max_alt_time` | &mdash;       | timestamp of the maximum altitude of the day
-&mdash;        | `name`            | language independent name of the celestial object
+&mdash; | `hip_number` | in case of stars the Hipparcos catalog number
 
 And these attributes are supported by both core WeeWX using PyEphem and
 this extension using Skyfield:
@@ -290,6 +316,7 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `earth_distance` | astrometric distance to the earth in astronomic units (AU)
 &mdash; | `sun_distance` | astrometric distance to the sun in astronomic units (AU)
 &mdash; | `mag` | magnitude
+&mdash; | `name` | language independent name of the celestial object
 
 Try
 
@@ -536,6 +563,15 @@ configuration for the ephemeris files.
 The object identification number is unique. The only reason it is 
 connected to the file name here is to make it possible to use one
 single format specification for a whole set of satellites.
+
+### Stars
+
+From 1989 to 1993 ESA's Hipparcos satellite imaged the celestial sphere,
+and afterwards a new high accuracy star catalogue was calculated and
+published, called the Hipparcos catalogue. It contains 118218 stars from all 
+over the sky. Skyfield can download and use that catalogue and so can
+this WeeWX extension. The URL is included in Skyfield. No configuration
+is required so far.
 
 ## FAQ
 
