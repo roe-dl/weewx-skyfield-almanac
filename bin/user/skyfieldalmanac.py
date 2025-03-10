@@ -114,6 +114,42 @@ SUN = 'sun'
 EARTH = PLANETS[2]
 EARTHMOON = 'moon'
 
+# Size of heavenly bodies
+# Note: Unfortunately the SPICE kernel files do not contain information 
+#       about the size of the heavenly bodies, but PyEphem does.
+SIZES = {
+    #           equator.r  pole.r    mean.r [all km]
+    # https://iopscience.iop.org/article/10.1088/0004-637X/750/2/135
+    # Note: The source does not differentiate between equatorial, polar, and
+    #       mean radius of the sun. Therefore the same value is provided
+    #       for all three radii here.
+    'sun':     (696342,696342,696342),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/mercuryfact.html
+    'mercury': ( 2440.5,   2438.3,   2439.7  ),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/venusfact.html
+    'venus':   ( 6051.8,   6051.8,   6051.8  ),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html
+    'earth':   ( 6378.137, 6356.752, 6371.000),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html
+    'moon':    ( 1738.1,   1736.0,   1737.4  ),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html
+    'mars':    ( 3396.2,   3376.2,   3389.5  ),
+    # https://www.nature.com/articles/nature03938
+    'ceres':   (  487.3,    454.7,    476,2  ),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/jupiterfact.html
+    'jupiter': (71492,    66854,    69911    ),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/saturnfact.html
+    'saturn':  (60268,    54364,    58232    ),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/uranusfact.html
+    'uranus':  (25559,    24973,    25362    ),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/neptunefact.html
+    'neptune': (24764,    24341,    24622    ),
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/plutofact.html
+    'pluto':   ( 1188,     1188,     1188    ),
+}
+MEAN_MOON_RADIUS_KM = SIZES['moon'][2]
+SUN_RADIUS_KM = SIZES['sun'][2]
+
 # Global variables
 ts = None
 ephemerides = None
@@ -545,11 +581,12 @@ class SkyfieldAlmanacBinder:
             body = _get_body(self.heavenly_body)
             astrometric = ephemerides[SUN].at(t).observe(body)
             return astrometric.distance().au
-            
+        
         if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist',
                     'earth_distance','elong','elongation','mag',
-                    'sublat','sublong','sublatitude','sublongitude'):
+                    'sublat','sublong','sublatitude','sublongitude',
+                    'size','radius'):
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
             if isinstance(body,EarthSatellite):
@@ -591,6 +628,13 @@ class SkyfieldAlmanacBinder:
                     return distance.km
                 elif attr=='earth_distance':
                     return distance.au
+                elif attr in ('size','radius'):
+                    radius = SIZES.get(self.heavenly_body.split('_')[0])
+                    if radius is None or radius[0] is None or not distance.km:
+                        return None
+                    radius = radius[0]/distance.km
+                    if attr=='radius': return radius
+                    return radius*2.0*RAD2DEG*3600.0
                 if attr in ('astro_ra','geo_ra'):
                     vt = ValueTuple(ra._degrees,'degree_compass','group_direction')
                 elif attr in ('astro_dec','geo_dec'):
@@ -730,7 +774,8 @@ class SkyfieldAlmanacBinder:
                             self.heavenly_body.lower()==EARTHMOON and 
                             not self.use_center):
                         _, _, distance = observer.at(t).observe(body).apparent().hadec()
-                        horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
+                        #horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
+                        horizon = self.almanac.horizon-MEAN_MOON_RADIUS_KM/distance.km*RAD2DEG
                         horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
                         t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
             except ValueError as e:
@@ -751,7 +796,8 @@ class SkyfieldAlmanacBinder:
                             self.heavenly_body.lower()==EARTHMOON and 
                             not self.use_center):
                         _, _, distance = observer.at(t).observe(body).apparent().hadec()
-                        horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
+                        #horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
+                        horizon = self.almanac.horizon-MEAN_MOON_RADIUS_KM/distance.km*RAD2DEG
                         horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
                         t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
             except ValueError as e:

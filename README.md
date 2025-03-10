@@ -8,7 +8,7 @@ Almanac extension to WeeWX using Skyfield module
 * [Installation instructions](#installation-instructions)
 * [Configuration instructions](#configuration-instructions)
 * [Usage](#usage)
-* [Customization of WeeWX using this extension](#custimization-of-weewx-using-this-extension)
+* [Customization of WeeWX using this extension](#customization-of-weewx-using-this-extension)
   * [Date and time](#date-and-time)
   * [Calendar events](#calendar-events)
   * [Heavenly bodies](#heavenly-bodies)
@@ -21,7 +21,7 @@ Almanac extension to WeeWX using Skyfield module
 * [Base data for calculation](#base-data-for-calculation)
   * [Time scales](#time-scales)
   * [Ephemerides](#ephemerides)
-  * [Earth satellites and space debris](#earth-satellites-and-space-debris)
+  * [Earth satellites and space debris orbital data](#earth-satellites-and-space-debris-orbital-data)
   * [Stars](#stars)
 * [FAQ](#faq)
 * [Links](#links)
@@ -201,7 +201,7 @@ If `lat` and `lon` are not specified, the location of the station is used.
 ### Date and time
 
 Date and time values do not require a heavenly body. They refer to the
-location on earth that `$almanac` is bound to. You can specify the
+location on Earth that `$almanac` is bound to. You can specify the
 location by parameters to `$almanac`. If you do not set them, the
 location of the station is used.
 
@@ -224,10 +224,10 @@ available only.
 
 ### Calendar events
 
-Calendar events do not require a heavenly body. They refer to earth.
+Calendar events do not require a heavenly body. They refer to Earth.
 This extension provides the events described in the WeeWX customization
 guide, but calculated using Skyfield. They happen independent of your
-location on earth at the same instant all over the world. The local time
+location on Earth at the same instant all over the world. The local time
 differs only. Here is a list of available events:
 
 Previous event | Next event |
@@ -256,7 +256,7 @@ This extension provides the attributes described in the WeeWX customization
 guide, but calculated using Skyfield. Additionally it provides some
 extra attributes, that are not available with PyEphem.
 
-The sun as well as planets and their moons are referenced by their name.
+The Sun as well as planets and their moons are referenced by their name.
 Depending on the ephemerides you chose you may be required to add
 `_barycenter` to the name of a heavenly body to get results
 (for example `jupiter_barycenter`). Stars are referenced by their
@@ -310,13 +310,15 @@ WeeWX datatype | Pure float result | Meaning
 `geo_dec` | `g_dec` | apparent geocentric declination
 `topo_ra` | `ra` | apparent topocentric right ascension
 `topo_dec` | `dec` | apparent topocentric declination
-`elongation` | `elong` | angle with sun
+`elongation` | `elong` | angle with Sun
 `sublatitude` | `sublat` | latitude below an earth satellite
 `sublongitude` | `sublong` | longitude below an earth satellite
-&mdash; | `earth_distance` | astrometric distance to the earth in astronomic units (AU)
-&mdash; | `sun_distance` | astrometric distance to the sun in astronomic units (AU)
+&mdash; | `earth_distance` | astrometric distance to the Earth in astronomic units (AU)
+&mdash; | `sun_distance` | astrometric distance to the Sun in astronomic units (AU)
 &mdash; | `mag` | magnitude
-&mdash; | `name` | language independent name of the celestial object
+&mdash; | `name` (str) | language independent name of the celestial object
+&mdash; | `size` | diameter in arcseconds
+&mdash; | `radius` | radius in radians
 
 Try
 
@@ -345,7 +347,7 @@ display a table of the planets and their data you could do it that way:
     <th>$gettext('Magnitude')</th>
     <th>$gettext('Rise')</th>
     <th>$gettext('Set')</th>
-    <th>$gettext('Distance from sun')</th>
+    <th>$gettext('Distance from Sun')</th>
     <th>
     </tr>
     #for $planet in $almanac.planets
@@ -391,7 +393,7 @@ When that file is successfully loaded and processed you can refer to a
 satellite out of it by concatenating the name of the file (this time
 `weather`), an underscore, and the catalog number of the satellite. For 
 example, for the METEOSAT-10 satellite this would be `weather_38552`. 
-Then, if you want to see the location on earth directly below the 
+Then, if you want to see the location on Earth directly below the 
 satellite you would write
 
 ```
@@ -416,12 +418,12 @@ There are different coordinate systems used to express locations.
 
 Within base plane | Rectangular to it | Base plane  | Origin | Direction
 -----------|--------------|-------------|--------|-------------
-longitude (-180°...+180°) | latitude (-90°...+90°) | earth's equator | earth's center | meridian of Greenwich
+longitude (-180°...+180°) | latitude (-90°...+90°) | Earth's equator | Earth's center | meridian of Greenwich
 azimuth (0°...360°) | altitude (-90°...+90°) | horizon of the observer | observer | geographic north
-right ascension (0°...360°) | declination (-90°...+90°) | earth's equator | earths's center | sun at spring equinox
-hour angle (-180°...+180°) | declination (-90°...+90°) | earth's equator | earth's center | observer's meridian
+right ascension (0°...360°) | declination (-90°...+90°) | Earth's equator | Earth's center | Sun at spring equinox
+hour angle (-180°...+180°) | declination (-90°...+90°) | Earth's equator | Earth's center | observer's meridian
 
-Please note, that the earth's equator also moves in different ways, and
+Please note, that the Earth's equator also moves in different ways, and
 the attributes differ in which of the movements they take care of.
 
 And those changes are also the reason you have to provide a date, called
@@ -465,11 +467,11 @@ changing almanac values to the LOOP packet for live updates. To use them
 include them in MQTT output. To activate live data, set the
 `enable_live_data` configuration option to `true`, which is the default.
 
-* `solarAltitude`: current altitude of the sun
-* `solarAzimuth`: current azimuth of the sun
-* `solarTime`: current hour angle of the sun, counted from midnight
+* `solarAltitude`: current altitude of the Sun
+* `solarAzimuth`: current azimuth of the Sun
+* `solarTime`: current hour angle of the Sun, counted from midnight
   (that is sundial time)
-* `solarPath`: current percentage of the way of the sun from sunrise
+* `solarPath`: current percentage of the way of the Sun from sunrise
   to sunset
 
 If you want to use those values for further calculations - for example
@@ -493,7 +495,7 @@ section `[DatabaseTypes]`, sub-section `[[SQLite]]`.
 
 ### Time scales
 
-The earth does not rotate steadily and additionally slows down by time.
+The Earth does not rotate steadily and additionally slows down by time.
 This has to be taken into account when doing astronomic computations.
 Earth rotation is documented and published by the IERS, an international 
 organization (see link below). Skyfield comes with an internal list of
@@ -543,7 +545,16 @@ Moons of planets other than the Earth you find at JPL's site in the
 directory "satellites". Ceres and other dwarf planets you find
 there in the directory "asteroids". 
 
-### Earth satellites and space debris
+### Apparent sizes
+
+Unlike PyEphem Skyfield does not contain information about the radii
+of heavenly bodies. Therefore the files of this WeeWX extension
+include a dictionary providing equatorial, polar, and mean radius 
+(in kilometres) of the Sun, the Moon, Mercury, Venus, the Earth, Mars, 
+Ceres, Jupiter, Saturn, Uranus, Neptune, and Pluto. For those bodies 
+the attributes `size` and `radius` are available.
+
+### Earth satellites and space debris orbital data
 
 The orbital data of earth satellites are published as so-called
 TLE files. Their name comes from "two line element" and refers to the
@@ -589,7 +600,7 @@ Q: Which ephemeris file should I use?
 
 A: The ephemeris files differ in size and coverage of heavenly bodies and
    time. The default, if you do not choose anything, is `de440s.bsp`. It
-   covers sun, earth, moon, and some data of the long known planets. If
+   covers Sun, Earth, Moon, and some data of the long known planets. If
    you need more, try `de440.bsp` or even `de441.bsp`.
    From time to time the NASA releases new sets of ephemeris files. Then you
    can try the new edition.
