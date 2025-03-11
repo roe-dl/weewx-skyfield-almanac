@@ -97,10 +97,10 @@ from skyfield.data import iers
 from skyfield.constants import DAY_S, DEG2RAD, RAD2DEG
 from skyfield.iokit import parse_tle_file
 from skyfield.magnitudelib import planetary_magnitude
+from skyfield.named_stars import named_star_dict
 
 try:
     import pandas
-    import skyfield.data.hipparcos
     has_pandas = True
 except ImportError:
     has_pandas = False
@@ -778,6 +778,7 @@ class SkyfieldAlmanacBinder:
                         horizon = self.almanac.horizon-MEAN_MOON_RADIUS_KM/distance.km*RAD2DEG
                         horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
                         t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
+                    y = len(y)>=1 and y[idx]
             except ValueError as e:
                 logerr("%s.%s: %s - %s" % (self.heavenly_body,attr,e.__class__.__name__,e))
                 t = None
@@ -800,6 +801,7 @@ class SkyfieldAlmanacBinder:
                         horizon = self.almanac.horizon-MEAN_MOON_RADIUS_KM/distance.km*RAD2DEG
                         horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
                         t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
+                    y = len(y)>=1 and y[idx]
             except ValueError as e:
                 logerr("%s.%s: %s - %s" % (self.heavenly_body,attr,e.__class__.__name__,e))
                 t = None
@@ -966,6 +968,10 @@ class SkyfieldMaintenanceThread(threading.Thread):
     def init_starnames(self):
         """ init star names dictionary """
         global starnames, starids
+        starids = named_star_dict
+        starnames = {hip:name for name, hip in starids.items() }
+        return True
+        """
         try:
             fn = os.path.dirname(os.path.realpath(__file__))
             fn = os.path.join(fn,'starnames.dat')
@@ -981,6 +987,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         except (OSError,TypeError,ValueError) as e:
             logerr("thread '%s': could not load '%s': %s - %s" % (self.name,fn,e.__class__.__name__,e))
             return False
+        """
     
     def init_skyfield(self):
         """ download ephemeris data or read them from file """
@@ -1122,12 +1129,17 @@ class SkyfieldMaintenanceThread(threading.Thread):
         return rtn
     
     def init_stars(self):
+        """ load and initialize the stars dictionary
+        
+            See also skyfield.data.tycho2
+        """
         global stars
         rtn = True
         # instantiate the loader
         load = Loader(self.path,verbose=False)
         # stars
         if has_pandas:
+            import skyfield.data.hipparcos
             try:
                 file = self.download([skyfield.data.hipparcos.URL],'hip_main.tmp')
                 if file:

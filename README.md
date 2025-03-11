@@ -21,6 +21,7 @@ Almanac extension to WeeWX using Skyfield module
 * [Base data for calculation](#base-data-for-calculation)
   * [Time scales](#time-scales)
   * [Ephemerides](#ephemerides)
+  * [Apparent sizes](#apparent-sizes)
   * [Earth satellites and space debris orbital data](#earth-satellites-and-space-debris-orbital-data)
   * [Stars](#stars)
 * [FAQ](#faq)
@@ -547,9 +548,9 @@ there in the directory "asteroids".
 
 ### Apparent sizes
 
-Unlike PyEphem Skyfield does not contain information about the radii
-of heavenly bodies. Therefore the files of this WeeWX extension
-include a dictionary providing equatorial, polar, and mean radius 
+Unlike PyEphem Skyfield does not contain a method to calculate the 
+apparent size of a heavenly body. Therefore the files of this WeeWX 
+extension include a dictionary providing equatorial, polar, and mean radius 
 (in kilometres) of the Sun, the Moon, Mercury, Venus, the Earth, Mars, 
 Ceres, Jupiter, Saturn, Uranus, Neptune, and Pluto. For those bodies 
 the attributes `size` and `radius` are available.
