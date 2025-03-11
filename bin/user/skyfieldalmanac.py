@@ -488,32 +488,30 @@ class SkyfieldAlmanacBinder:
         t1 = timestamp_to_skyfield_time(timespan[1])
         if SKYFIELD_VERSION<(1,47):
             # outdated function
-            try:
-             t, y = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)))
-             if len(t)==2 and y[0]==1 and y[1]==0:
-                tr = [t[0]]
-                tg = [t[1]]
-                yr = [True]
-                yg = [True]
-             else:
-                tr = []
-                tg = []
-                yr = [False]
-                yg = [False]
-            except Exception as e:
-             logerr('visible %s %s' % (e.__class__.__name__,e))
-             tr, tg = [],[]
+            tx, yx = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)))
+            change = [(t,y==1) for t,y in zip(tx.tai,yx) if y in (0,1)]
         else:
             # actual function
             tr, yr = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
+            up = [(t,True) for t,y in zip(tr.tai,yr) if y]
             tg, yg = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
-        if len(tr)<1 or len(tg)<1:
-            visible = None
-        elif yr[-1] and yg[-1]:
-            visible = (tg[-1].ut1-tr[-1].ut1) * weewx.units.SECS_PER_DAY
-        else:
-            #TODO always up and always down
+            down = [(t,False) for t,y in zip(tg.tai,yg) if y]
+            change = up+down
+        if change:
+            # There is at least one change in visibility.
+            change.sort(key=lambda x:x[0])
+            change = [(t0.tai,not change[0][1])] + change + [(t1.tai,not change[-1][1])]
             visible = 0
+            for idx in range(len(change)-1):
+                if change[idx][1] and not change[idx+1][1]:
+                    visible += (change[idx+1][0]-change[idx][0]) * weewx.units.SECS_PER_DAY
+        else:
+            # Always up or always down
+            alt, _, _ = observer.at(timestamp_to_skyfield_time(0.5*(timespan[0]+timespan[1]))).observe(body).altaz()
+            if alt>0:
+                visible = (t1.tai-t0.tai) * weewx.units.SECS_PER_DAY
+            else:
+                visible = 0
         return weewx.units.ValueHelper(ValueTuple(visible, "second", "group_deltatime"),
                                        context="day",
                                        formatter=self.almanac.formatter,
@@ -541,6 +539,38 @@ class SkyfieldAlmanacBinder:
                                        formatter=self.almanac.formatter,
                                        converter=self.almanac.converter)
 
+    @property
+    def name(self):
+        """ name of the heavenly object
+        
+            The `name` attribute is supported by the PyEphem almanac, too, but
+            it is not documented in the customization guide of WeeWX.
+        """
+        body = _get_body(self.heavenly_body)
+        if isinstance(body,Star):
+            # If `_get_body()` returned an instance of class `Star`,
+            # we know for sure that `self.heavenly_body` starts
+            # with `HIP`.
+            hip = weeutil.weeutil.to_int(self.heavenly_body[3:])
+            return hip_to_starname(hip, self.heavenly_body)
+        if isinstance(body,EarthSatellite):
+            # There is always a name attached to an earth satellite,
+            # and it is language independent.
+            return body.name
+        # If no other source of the name is available, use the name
+        # of the attribute that specifies the heavenly body which
+        # is mostly the English name of it.
+        return self.heavenly_body.split('_')[0].capitalize()
+
+    @property
+    def hip_number(self):
+        """ Hipparcos catalogue number in case of stars """
+        if (self.heavenly_body.startswith('HIP') and
+                                             self.heavenly_body[3:].isdigit()):
+            return weeutil.weeutil.to_int(self.heavenly_body[3:])
+        else:
+            return None
+
     def __getattr__(self, attr):
         """Get the requested observation, such as when the body will rise."""
         global ephemerides
@@ -548,31 +578,6 @@ class SkyfieldAlmanacBinder:
         # special names: they are used by the Python language:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
             raise AttributeError(attr)
-        
-        # The `name` attribute is supported by the PyEphem almanac, too, but
-        # it is not documented in the customization guide of WeeWX.
-        if attr=='name':
-            body = _get_body(self.heavenly_body)
-            if isinstance(body,Star):
-                # If `_get_body()` returned an instance of class `Star`,
-                # we know for sure that `self.heavenly_body` starts
-                # with `HIP`.
-                hip = weeutil.weeutil.to_int(self.heavenly_body[3:])
-                return hip_to_starname(hip,self.heavenly_body)
-            if isinstance(body,EarthSatellite):
-                # There is always a name attached to an earth satellite,
-                # and it is language independent.
-                return body.name
-            # If no other source of the name is available, use the name
-            # of the attribute that specifies the heavenly body which
-            # is mostly the English name of it.
-            return self.heavenly_body.split('_')[0].capitalize()
-        
-        if attr=='hip_number':
-            if self.heavenly_body.startswith('HIP') and self.heavenly_body[3:].isdigit():
-                return weeutil.weeutil.to_int(self.heavenly_body[3:])
-            else:
-                return None
         
         # The `sun_distance` attribute is supported by the PyEphem almanac, 
         # too, but it is not documented in the customization guide of WeeWX.
