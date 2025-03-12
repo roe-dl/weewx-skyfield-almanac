@@ -379,6 +379,32 @@ class SkyfieldAlmanacType(AlmanacType):
                                            context="ephem_year",
                                            formatter=almanac_obj.formatter,
                                            converter=almanac_obj.converter)
+        elif attr in ('previous_apogee_moon','next_apogee_moon',
+                      'previous_perigee_moon','next_perigee_moon'):
+            if attr.startswith('previous_'):
+                t0 = -2592000
+                t1 = 0
+                idx = -1
+            else:
+                t0 = 0
+                t1 = 2592000
+                idx = 0
+            t0 = timestamp_to_skyfield_time(almanac_obj.time_ts+t0)
+            t1 = timestamp_to_skyfield_time(almanac_obj.time_ts+t1)
+            earth = ephemerides[EARTH]
+            moon = ephemerides[EARTHMOON]
+            def func(t):
+                return earth.at(t).observe(moon).apparent().distance().km
+            func.step_days = 1
+            if 'apogee' in attr:
+                t, v = find_maxima(t0, t1, func)
+            else:
+                t, v = find_minima(t0, t1, func)
+            djd = skyfield_time_to_djd(t)
+            return weewx.units.ValueHelper(ValueTuple(djd, "dublin_jd", "group_time"),
+                                           context="ephem_year",
+                                           formatter=almanac_obj.formatter,
+                                           converter=almanac_obj.converter)
         # Check to see if the attribute is a sidereal angle
         elif attr == 'sidereal_time' or attr == 'sidereal_angle':
             # Local Apparent Sidereal Time (LAST)
@@ -462,26 +488,32 @@ class SkyfieldAlmanacType(AlmanacType):
 
 
 class SkyfieldAlmanacBinder:
-    """This class binds the observer properties held in Almanac, with the heavenly
-    body to be observed."""
+    """This class binds the observer properties held in Almanac, with the 
+    heavenly body to be observed."""
 
     def __init__(self, almanac, heavenly_body):
         self.almanac = almanac
-
-        # Calculate and store the start-of-day in Dublin Julian Days. 
-        y, m, d = time.localtime(self.almanac.time_ts)[0:3]
-        #self.sod_djd = timestamp_to_djd(time.mktime((y, m, d, 0, 0, 0, 0, 0, -1))
-
         self.heavenly_body = heavenly_body
         self.use_center = False
 
     def __call__(self, use_center=False):
         self.use_center = use_center
         return self
-    
+
     @property
     def visible(self):
-        """Calculate how long the body has been visible today"""
+        """ Calculate how long the body has been visible today
+        
+            This property returns the total time the body is up during the 
+            archive day the almanac time is in. The body may rise in the 
+            morning and set in the evening with a period of visibility in 
+            between. But the body can also be up at midnight, then set, and 
+            later rise again. In that case there are two separate periods 
+            of visibility which will be summarized. Finally the body can
+            be up or down the whole day in which case 24 hours or 0 hours
+            is returned, respectively. In case of leap seconds or daylight
+            savings time switches the result can be more than 86400 seconds.
+        """
         observer, horizon, body = _get_observer(self.almanac,self.heavenly_body,self.use_center)
         timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
         t0 = timestamp_to_skyfield_time(timespan[0])
@@ -885,7 +917,7 @@ class SkyfieldFormatter(weewx.units.Formatter):
 
 
 class SkyfieldMaintenanceThread(threading.Thread):
-    """ Thread to download and update ephemeris and timescales 
+    """ Thread to download and update ephemerides and timescales 
     
         If initializing Skyfield requires downloading files, this can take
         too long to do it during WeeWX initialization. So it is put into
@@ -909,24 +941,33 @@ class SkyfieldMaintenanceThread(threading.Thread):
         logdbg("path to save Skyfield files: '%s'" % self.path)
         ephem_files = alm_conf_dict.get('ephemeris','de440s.bsp')
         if isinstance(ephem_files,list):
+            # A list of files is provided. Save it.
             self.eph_files = ephem_files
             self.spk = [None]*len(ephem_files)
         else:
+            # One single file is provided. Convert it into a list.
             self.eph_files = [ephem_files]
             self.spk = [None]
+        # Use Skyfield's built-in timescale or retrieve it from IERS?
         self.builtin = weeutil.weeutil.to_bool(alm_conf_dict.get('use_builtin_timescale',True))
+        # Update interval for timescale (if not built-in) and ephemerides
         self.update_interval = weeutil.weeutil.to_int(alm_conf_dict.get('update_interval',31557600))
         if self.update_interval:
             self.update_interval = max(self.update_interval,86400)
+        # For debegging the FTP communication can be logged.
         self.log_ftp = weeutil.weeutil.to_bool(alm_conf_dict.get('log_ftp',False))
+        # URLs to try to get timescale files from
         self.ts_urls = alm_conf_dict.get('timescale_url',None)
         if self.ts_urls and not isinstance(self.ts_urls,list):
             self.ts_urls = [self.ts_urls]
+        # TLE files
         self.earthsatellites = alm_conf_dict['EarthSatellites']
         loginf("timescale: %s, update interval: %.2f days" % ('builtin' if self.builtin else 'IERS file',self.update_interval/DAY_S))
         loginf("ephemeris file(s): %s" % self.eph_files)
+        # Used to inform the thread about shutdown
         self.evt = threading.Event()
         self.running = True
+        # Variables to remember updates
         self.last_ts_update = 0
         self.last_eph_update = [0]*len(self.eph_files)
         self.last_sat_update = dict()
@@ -1145,13 +1186,14 @@ class SkyfieldMaintenanceThread(threading.Thread):
         # stars
         if has_pandas:
             import skyfield.data.hipparcos
-            try:
-                file = self.download([skyfield.data.hipparcos.URL],'hip_main.tmp')
-                if file:
-                    os.rename(file,os.path.join(self.path,'hip_main.dat'))
-            except (OSError,AttributeError,TypeError) as e:
-                logerr("thread '%s': error downloading star catalog %s - %s" % (self.name,e.__class__.__name__,e))
-                rtn = False
+            if not os.path.isfile(os.path.join(self.path, 'hip_main.dat')):
+                try:
+                    file = self.download([skyfield.data.hipparcos.URL],'hip_main.tmp')
+                    if file:
+                        os.rename(file,os.path.join(self.path,'hip_main.dat'))
+                except (OSError,AttributeError,TypeError) as e:
+                    logerr("thread '%s': error downloading star catalog %s - %s" % (self.name,e.__class__.__name__,e))
+                    rtn = False
             try:
                 with load.open('hip_main.dat') as f:
                     df = skyfield.data.hipparcos.load_dataframe(f)

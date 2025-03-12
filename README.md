@@ -243,8 +243,15 @@ Previous event | Next event |
 `previous_first_quarter_moon` | `next_first_quarter_moon`
 `previous_full_moon` | `next_full_moon`
 `previous_last_quarter_moon` | `next_last_quarter_moon`
-`previous_perihelion` | `next_perihelion`
-`previous_aphelion` | `next_aphelion`
+
+And these events this WeeWX extension provides additionally:
+
+Previous event | Next event | Meaning
+---------------|------------|------------------
+`previous_perihelion` | `next_perihelion` | perihelion of the Earth (when the Earth is nearest to the Sun)
+`previous_aphelion` | `next_aphelion` | aphelion of the Earth (when the Earth is farthest from the Sun)
+`previous_perigee_moon` | `next_perigee_moon` | perigee of the Moon (when the Moon is nearest to the Earth; in connection with full moon sometimes "supermoon")
+`previous_apogee_moon` | `next_apogee_moon` | apogee of the Moon (when the Moon is farthest from the Earth)
 
 Example:
 ```
@@ -474,6 +481,15 @@ include them in MQTT output. To activate live data, set the
   (that is sundial time)
 * `solarPath`: current percentage of the way of the Sun from sunrise
   to sunset
+
+What is the difference between `solarAzimuth`, `solarAltitude` and
+`$almanac.sun.az` (`$almanac.sun.azimuth`), `$almanac.sun.alt`
+(`$almanac.sun.azimuth`), respectively?
+
+* `solarAzimuth` and `solarAltitude` are output to MQTT and thus allow 
+  live updates on web sites.
+* As `solarAzimuth` and `solarAltitude` are observation types, they can be 
+  saved to the database and then displayed in diagrams.
 
 If you want to use those values for further calculations - for example
 for sunshine duration calculation - make sure to put 
