@@ -197,7 +197,7 @@ def timestamp_to_skyfield_time(timestamp, offset=0):
         
         `None` is not a valid timestamp, but it is not easy to find the 
         reason if the exception is raised here. So return a valid `Time`
-        object with an invalid value.
+        object with an invalid value instead of raising TypeError.
         
         Args:
             timestamp(int, float): Unix timestamp
@@ -221,10 +221,12 @@ def skyfield_time_to_djd(ti):
     return ti.ut1-ti.dut1/DAY_S-2415020.0
 
 def hip_to_starname(hip, default=None):
+    """ convert Hipparcos catalogue number to the name of the star """
     global starnames
     return starnames.get(hip,default)
 
 def _get_body(body):
+    """ get the ephemeris of the body """
     # Note: sun_and_planets['jupiter barycenter'] and sun_and_planets['jupiter_barycenter'] both work.
     global ephemerides, stars
     if body.startswith('HIP'):
@@ -233,8 +235,8 @@ def _get_body(body):
     return ephemerides[body]
 
 def _get_observer(almanac_obj, target, use_center):
-    global ephemerides
     """ get observer object and refraction angle """
+    global ephemerides
     # a location on earth surface
     observer = ephemerides[EARTH] + wgs84.latlon(almanac_obj.lat,almanac_obj.lon,elevation_m=almanac_obj.altitude)
     # calculate refraction angle
@@ -350,8 +352,8 @@ class SkyfieldAlmanacType(AlmanacType):
                                            context="ephem_year",
                                            formatter=almanac_obj.formatter,
                                            converter=almanac_obj.converter)
-        elif attr in ('previous_aphelion','next_aphelion',
-                      'previous_perihelion','next_perihelion'):
+        elif attr in {'previous_aphelion','next_aphelion',
+                      'previous_perihelion','next_perihelion'}:
             if attr.startswith('previous_'):
                 t0 = -31557600
                 t1 = 0
@@ -379,8 +381,8 @@ class SkyfieldAlmanacType(AlmanacType):
                                            context="ephem_year",
                                            formatter=almanac_obj.formatter,
                                            converter=almanac_obj.converter)
-        elif attr in ('previous_apogee_moon','next_apogee_moon',
-                      'previous_perigee_moon','next_perigee_moon'):
+        elif attr in {'previous_apogee_moon','next_apogee_moon',
+                      'previous_perigee_moon','next_perigee_moon'}:
             if attr.startswith('previous_'):
                 t0 = -2592000
                 t1 = 0
@@ -406,7 +408,7 @@ class SkyfieldAlmanacType(AlmanacType):
                                            formatter=almanac_obj.formatter,
                                            converter=almanac_obj.converter)
         time_ti = timestamp_to_skyfield_time(almanac_obj.time_ts)
-        if attr in ('moon_phase','moon_index'):
+        if attr in {'moon_phase','moon_index'}:
             position = almanac.moon_phase(sun_and_planets, time_ti).degrees/360.0
             moon_index = int((position * 8) + 0.5) & 7
             if attr=='moon_index': return moon_index
@@ -471,7 +473,7 @@ class SkyfieldAlmanacType(AlmanacType):
             # SkyfieldAlmanacBinder
             return SkyfieldAlmanacBinder(almanac_obj, attr.lower())
         elif (attr.lower()+'_barycenter' in ephemerides and 
-             attr in ('mars','jupiter','saturn','uranus','neptune','pluto')):
+             attr in {'mars','jupiter','saturn','uranus','neptune','pluto'}):
             # The attribute is a heavenly body (such as 'jupiter'), but its
             # barycentre is available only. So map the name.
             # Bind the almanac and the heavenly body together and return as a
@@ -625,20 +627,20 @@ class SkyfieldAlmanacBinder:
             astrometric = ephemerides[SUN].at(t).observe(body)
             return astrometric.distance().au
         
-        if attr in ('astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
+        if attr in {'astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist',
                     'earth_distance','elong','elongation','mag',
                     'sublat','sublong','sublatitude','sublongitude',
-                    'size','radius'):
+                    'size','radius'}:
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
             if isinstance(body,EarthSatellite):
                 astrometric = body.at(t)
             else:
                 astrometric = ephemerides[EARTH].at(t).observe(body)
-                if attr in ('geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'):
+                if attr in {'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'}:
                     astrometric = astrometric.apparent()
-            if attr in ('elong','elongation'):
+            if attr in {'elong','elongation'}:
                 phase_angle = astrometric.phase_angle(ephemerides[SUN])
                 if attr=='elong':
                     return phase_angle.degrees
@@ -650,7 +652,7 @@ class SkyfieldAlmanacBinder:
                     return float(planetary_magnitude(astrometric))
                 except (ValueError,TypeError):
                     return None
-            elif attr in ('sublat','sublong','sublatitude','sublongitude'):
+            elif attr in {'sublat','sublong','sublatitude','sublongitude'}:
                 # https://rhodesmill.org/skyfield/coordinates.html#geographic-itrs-latitude-and-longitude
                 point = wgs84.geographic_position_of(astrometric)
                 if attr=='sublat':
@@ -663,24 +665,24 @@ class SkyfieldAlmanacBinder:
                     vt = ValueTuple(point.longitude.degrees,'degree_compass','group_direction')
             else:
                 ra, dec, distance = astrometric.radec(epoch='date')
-                if attr in ('a_ra','g_ra'):
+                if attr in {'a_ra','g_ra'}:
                     return ra._degrees
-                elif attr in ('a_dec','g_dec'):
+                elif attr in {'a_dec','g_dec'}:
                     return dec.degrees
-                elif attr in ('a_dist','g_dist'):
+                elif attr in {'a_dist','g_dist'}:
                     return distance.km
                 elif attr=='earth_distance':
                     return distance.au
-                elif attr in ('size','radius'):
+                elif attr in {'size','radius'}:
                     radius = SIZES.get(self.heavenly_body.split('_')[0])
                     if radius is None or radius[0] is None or not distance.km:
                         return None
                     radius = radius[0]/distance.km
                     if attr=='radius': return radius
                     return radius*2.0*RAD2DEG*3600.0
-                if attr in ('astro_ra','geo_ra'):
+                if attr in {'astro_ra','geo_ra'}:
                     vt = ValueTuple(ra._degrees,'degree_compass','group_direction')
-                elif attr in ('astro_dec','geo_dec'):
+                elif attr in {'astro_dec','geo_dec'}:
                     vt = ValueTuple(dec.radians,'radian','group_angle')
                 else:
                     vt = ValueTuple(distance.km,'km','group_distance')
@@ -707,7 +709,7 @@ class SkyfieldAlmanacBinder:
             t1 = timestamp_to_skyfield_time(self.almanac.time_ts,86400)
             evt = attr[5:]
             idx = 0
-        elif attr in ('rise','set','transit','antitransit','day_max_alt','day_max_alt_time','day_max_altitude'):
+        elif attr in {'rise','set','transit','antitransit','day_max_alt','day_max_alt_time','day_max_altitude'}:
             # get the event within the day the timestamp is in
             timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
             t0 = timestamp_to_skyfield_time(timespan[0])
@@ -724,7 +726,7 @@ class SkyfieldAlmanacBinder:
                 position = observer.at(ti).observe(body).apparent()
             if attr=='moon_fullness':
                 return position.fraction_illuminated(ephemerides[SUN])*100.0
-            if attr in ('az','alt','alt_dist','azimuth','altitude','alt_distance'):
+            if attr in {'az','alt','alt_dist','azimuth','altitude','alt_distance'}:
                 alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)
                 if attr=='az':
                     return az.degrees
@@ -743,7 +745,7 @@ class SkyfieldAlmanacBinder:
                                                context="ephem_day",
                                                formatter=self.almanac.formatter,
                                                converter=self.almanac.converter)
-            if attr in ('ra','dec','dist','topo_ra','topo_dec','topo_dist'):
+            if attr in {'ra','dec','dist','topo_ra','topo_dec','topo_dist'}:
                 ra, dec, distance = position.radec('date')
                 if attr=='ra':
                     return ra._degrees
@@ -762,8 +764,8 @@ class SkyfieldAlmanacBinder:
                                                context="ephem_day",
                                                formatter=self.almanac.formatter,
                                                converter=self.almanac.converter)
-            if attr in ('ha','ha_dec','ha_dist',
-                        'hour_angle','ha_declination','ha_distance'):
+            if attr in {'ha','ha_dec','ha_dist',
+                        'hour_angle','ha_declination','ha_distance'}:
                 # measured from the plane of the Earth's physical geographic
                 # equator. The coordinates are not adjusted for atmospheric
                 # refraction near the horizon.
@@ -797,7 +799,7 @@ class SkyfieldAlmanacBinder:
         if SKYFIELD_VERSION<(1,47):
             station = wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)
         t = None
-        if evt in ('rise','rising'):
+        if evt in {'rise','rising'}:
             # rising
             try:
                 if SKYFIELD_VERSION<(1,47):
@@ -825,7 +827,7 @@ class SkyfieldAlmanacBinder:
             except ValueError as e:
                 logerr("%s.%s: %s - %s" % (self.heavenly_body,attr,e.__class__.__name__,e))
                 t = None
-        elif evt in ('set','setting'):
+        elif evt in {'set','setting'}:
             # setting
             try:
                 if SKYFIELD_VERSION<(1,47):
@@ -876,7 +878,7 @@ class SkyfieldAlmanacBinder:
                     t = t[0:1]
                     val = val[0:1]
             y = len(t)>=1
-        elif evt in ('day_max_alt','day_max_alt_time','day_max_altitude'):
+        elif evt in {'day_max_alt','day_max_alt_time','day_max_altitude'}:
             def alt_degrees(t):
                 position = observer.at(t).observe(body).apparent()
                 alt, _, _ = position.altaz()
