@@ -188,20 +188,26 @@ def _get_config(config_dict):
     alm_conf_dict['EarthSatellites'] = conf_dict.get('EarthSatellites',configobj.ConfigObj())
     return alm_conf_dict
 
-def timestamp_to_skyfield_time(timestamp):
+def timestamp_to_skyfield_time(timestamp, offset=0):
     """ convert Unix timestamp to Skyfield Time
     
         See https://github.com/skyfielders/python-skyfield/discussions/1027
         for why the timestamp is divided and added to the day of month
         instead of using the `second` parameter of `ts.utc`.
         
+        `None` is not a valid timestamp, but it is not easy to find the 
+        reason if the exception is raised here. So return a valid `Time`
+        object with an invalid value.
+        
         Args:
             timestamp(int, float): Unix timestamp
+            offset(int, float): offset in seconds to add
         
         Returns:
             skyfield.units.Time: the same timestamp converted
     """
-    return ts.utc(1970,1,1+timestamp/DAY_S)
+    if timestamp is None: return ts.utc(None)
+    return ts.utc(1970,1,1+(timestamp+offset)/DAY_S)
 
 def skyfield_time_to_djd(ti):
     """ convert Skyfield timestamp to Dublin Julian Date
@@ -286,18 +292,12 @@ class SkyfieldAlmanacType(AlmanacType):
         global ephemerides, planets_list
         if ts is None or ephemerides is None:
             raise weewx.UnknownType(attr)
-        time_ti = timestamp_to_skyfield_time(almanac_obj.time_ts)
         if attr=='sunrise':
             return almanac_obj.sun.rise
         elif attr=='sunset':
             return almanac_obj.sun.set
         elif attr=='moon_fullness':
             return int(almanac_obj.moon.moon_fullness + 0.5)
-        elif attr in ('moon_phase','moon_index'):
-            position = almanac.moon_phase(sun_and_planets, time_ti).degrees/360.0
-            moon_index = int((position * 8) + 0.5) & 7
-            if attr=='moon_index': return moon_index
-            return almanac_obj.moon_phases[moon_index]
         elif attr=='planets':
             return planets_list
         elif attr in {'previous_equinox', 'next_equinox',
@@ -333,8 +333,8 @@ class SkyfieldAlmanacType(AlmanacType):
             event = SkyfieldAlmanacType.EVENTS.get(x)
             if event is None: raise weewx.UnknownType(attr)
             # time interval to look for events
-            t0 = timestamp_to_skyfield_time(almanac_obj.time_ts+t0)
-            t1 = timestamp_to_skyfield_time(almanac_obj.time_ts+t1)
+            t0 = timestamp_to_skyfield_time(almanac_obj.time_ts,t0)
+            t1 = timestamp_to_skyfield_time(almanac_obj.time_ts,t1)
             # find the events
             t, y  = almanac.find_discrete(t0,t1,func(sun_and_planets))
             # in case of previous events search from the last event on
@@ -361,8 +361,8 @@ class SkyfieldAlmanacType(AlmanacType):
                 t1 = 31557600
                 idx = 0
             # time interval to look for events
-            t0 = timestamp_to_skyfield_time(almanac_obj.time_ts+t0)
-            t1 = timestamp_to_skyfield_time(almanac_obj.time_ts+t1)
+            t0 = timestamp_to_skyfield_time(almanac_obj.time_ts,t0)
+            t1 = timestamp_to_skyfield_time(almanac_obj.time_ts,t1)
             # function
             earth = ephemerides[EARTH]
             sun = ephemerides[SUN]
@@ -389,8 +389,8 @@ class SkyfieldAlmanacType(AlmanacType):
                 t0 = 0
                 t1 = 2592000
                 idx = 0
-            t0 = timestamp_to_skyfield_time(almanac_obj.time_ts+t0)
-            t1 = timestamp_to_skyfield_time(almanac_obj.time_ts+t1)
+            t0 = timestamp_to_skyfield_time(almanac_obj.time_ts,t0)
+            t1 = timestamp_to_skyfield_time(almanac_obj.time_ts,t1)
             earth = ephemerides[EARTH]
             moon = ephemerides[EARTHMOON]
             def func(t):
@@ -405,6 +405,12 @@ class SkyfieldAlmanacType(AlmanacType):
                                            context="ephem_year",
                                            formatter=almanac_obj.formatter,
                                            converter=almanac_obj.converter)
+        time_ti = timestamp_to_skyfield_time(almanac_obj.time_ts)
+        if attr in ('moon_phase','moon_index'):
+            position = almanac.moon_phase(sun_and_planets, time_ti).degrees/360.0
+            moon_index = int((position * 8) + 0.5) & 7
+            if attr=='moon_index': return moon_index
+            return almanac_obj.moon_phases[moon_index]
         # Check to see if the attribute is a sidereal angle
         elif attr == 'sidereal_time' or attr == 'sidereal_angle':
             # Local Apparent Sidereal Time (LAST)
@@ -691,14 +697,14 @@ class SkyfieldAlmanacBinder:
         
         if previous:
             # get the last event before the given timestamp
-            t0 = timestamp_to_skyfield_time(self.almanac.time_ts-86400)
+            t0 = timestamp_to_skyfield_time(self.almanac.time_ts,-86400)
             t1 = timestamp_to_skyfield_time(self.almanac.time_ts)
             evt = attr[9:]
             idx = -1
         elif next:
             # get the next event after the given timestamp
             t0 = timestamp_to_skyfield_time(self.almanac.time_ts)
-            t1 = timestamp_to_skyfield_time(self.almanac.time_ts+86400)
+            t1 = timestamp_to_skyfield_time(self.almanac.time_ts,86400)
             evt = attr[5:]
             idx = 0
         elif attr in ('rise','set','transit','antitransit','day_max_alt','day_max_alt_time','day_max_altitude'):
@@ -850,6 +856,8 @@ class SkyfieldAlmanacBinder:
                 t = [i for i,j in zip(t,y) if j==1]
                 y = len(t)>=1
             else:
+                # If no transit is found, the result is a value of type `Time`
+                # that conatains an empty list.
                 t = almanac.find_transits(observer, body, t0, t1)
                 y = True
         elif evt=='antitransit':
