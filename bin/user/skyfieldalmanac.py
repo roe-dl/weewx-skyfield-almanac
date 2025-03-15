@@ -366,16 +366,30 @@ class SkyfieldAlmanacType(AlmanacType):
             t0 = timestamp_to_skyfield_time(almanac_obj.time_ts,t0)
             t1 = timestamp_to_skyfield_time(almanac_obj.time_ts,t1)
             # function
+            # Note: In method `skyfield.searchlib._identify_maxima()` there
+            #       is a comment reading "Also choose the midpoint between
+            #       the edges of a plateau, if both edges are in view."
+            #       Therefore we assume we can round the result to avoid
+            #       comparing tenth of millimetres which are for sure no
+            #       real differences.
             earth = ephemerides[EARTH]
             sun = ephemerides[SUN]
             def func(t):
-                return earth.at(t).observe(sun).apparent().distance().km
-            func.step_days = 1
+                return numpy.round(earth.at(t).observe(sun).apparent().distance().km,1)
+            func.step_days = 90.0
             # find event
             if attr.endswith('aphelion'):
                 t, v = find_maxima(t0, t1, func)
             else:
                 t, v = find_minima(t0, t1, func)
+            """
+            try:
+                if len(t)>1:
+                    for tt,vv in zip(t.ut1,v):
+                        loginf("%s %s %s" % (attr,tt,vv))
+            except Exception as e:
+                logerr("%s %s" % (e.__class__.__name__,e))
+            """
             djd = skyfield_time_to_djd(t)
             return weewx.units.ValueHelper(ValueTuple(djd, "dublin_jd", "group_time"),
                                            context="ephem_year",
@@ -396,12 +410,18 @@ class SkyfieldAlmanacType(AlmanacType):
             earth = ephemerides[EARTH]
             moon = ephemerides[EARTHMOON]
             def func(t):
-                return earth.at(t).observe(moon).apparent().distance().km
-            func.step_days = 1
+                return numpy.round(earth.at(t).observe(moon).apparent().distance().km,1)
+            func.step_days = 7.0
             if 'apogee' in attr:
                 t, v = find_maxima(t0, t1, func)
             else:
                 t, v = find_minima(t0, t1, func)
+            try:
+                if len(t)>1:
+                    for tt,vv in zip(t.ut1,v):
+                        loginf("%s %s %s" % (attr,tt,vv))
+            except Exception as e:
+                logerr("%s %s" % (e.__class__.__name__,e))
             djd = skyfield_time_to_djd(t)
             return weewx.units.ValueHelper(ValueTuple(djd, "dublin_jd", "group_time"),
                                            context="ephem_year",

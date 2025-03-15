@@ -45,6 +45,11 @@ PyEphem calculated values by Skyfield calculated values in existing skins.
 WeeWX from version 5.2 on ist required and 
 Skyfield from version 1.47 on is recommended.
 
+> [!TIP]
+> If you want to test this WeeWX almanac extension before WeeWX 5.2 is
+> released, you can take `almanac.py` out of the development branch
+> of WeeWX and copy it to your installation of WeeWX 5.0, 5.1, or 4.10.
+
 Install Skyfield and NumPy. If you want to load star data you additionally
 need the Pandas module, otherwise you can leave it out.
 
@@ -89,6 +94,9 @@ pip install skyfield
    weectl extension install weewx-skyfield-almanac.zip
    ```
    
+> [!CAUTION]
+> You must not use `sudo` if you installed WeeWX by `pip`.
+
 3) restart weewx
 
    for SysVinit systems:
@@ -289,6 +297,10 @@ Example:
 $almanac.sun.rise
 ```
 
+> [!CAUTION]
+> It is possible that a heavenly body does not rise, transit, or set at
+> all on a particular day.
+
 Here is the list of attributes provided by this extension but not by
 core WeeWX using PyEphem:
 
@@ -414,6 +426,47 @@ varies a little bit only. You see it if you format the output with
 decimals as shown above.
 
 See section [Heavenly bodies](#heavenly-bodies) for more attributes to use.
+
+This example prints a list of all space stations with their actual
+positions:
+
+```
+    #import user.skyfieldalmanac
+    <table>
+    <tr>
+    <th>Station</th>
+    <th>$pgettext('Astronomical','Altitude')</th>
+    <th>$gettext('Azimuth')</th>
+    <th>$gettext('Right ascension')</th>
+    <th>$gettext('Declination')</th>
+    <th>$gettext('Distance')</th>
+    <th>$gettext('Latitude')</th>
+    <th>$gettext('Longitude')</th>
+    </tr>
+    #for $key in [key for key in user.skyfieldalmanac.ephemerides if key.startswith('stations_')]
+    #set $binder = $getattr($almanac,$key)
+    <tr>
+    <td>$binder.name</td>
+    <td style="text-align:right">$binder.altitude</td>
+    <td>$binder.azimuth $binder.azimuth.ordinal_compass</td>
+    #set $ra_vh = $ValueHelper(ValueTuple($binder.topo_ra.raw/15.0 if $binder.topo_ra.raw is not None else None,None,None),'day',formatter=$station.formatter)
+    <td style="text-align:right">$ra_vh.format("%.1f") h</td>
+    <td style="text-align:right">$binder.topo_dec</td>
+    <td style="text-align:right">$binder.topo_dist</td>
+    <td style="text-align:right">$binder.sublatitude</td>
+    <td style="text-align:right">$binder.sublongitude</td>
+    </tr>
+    #end for
+    </table>
+```
+
+In `weewx.conf` you need
+
+```
+            stations.tle = https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle
+```
+
+in sub-section `[[[EarthSatellites]]]` for this to work.
 
 ### Maps
 
