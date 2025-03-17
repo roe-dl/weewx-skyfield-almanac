@@ -333,12 +333,13 @@ WeeWX datatype | Pure float result | Meaning
 `elongation` | `elong` | angle with Sun
 `sublatitude` | `sublat` | latitude below an earth satellite
 `sublongitude` | `sublong` | longitude below an earth satellite
+&mdash; | `elevation` | elevation of an earth satellite above the ellipsoid
 &mdash; | `earth_distance` | astrometric distance to the Earth in astronomic units (AU)
 &mdash; | `sun_distance` | astrometric distance to the Sun in astronomic units (AU)
 &mdash; | `mag` | magnitude
 &mdash; | `name` (str) | language independent name of the celestial object
 &mdash; | `size` | diameter in arcseconds
-&mdash; | `radius` | radius in radians
+`radius_size` | `radius` | radius in radians
 
 Try
 

@@ -651,20 +651,26 @@ class SkyfieldAlmanacBinder:
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist',
                     'earth_distance','elong','elongation','mag',
                     'sublat','sublong','sublatitude','sublongitude',
-                    'size','radius'}:
+                    'elevation','size','radius','radius_size'}:
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
             if isinstance(body,EarthSatellite):
                 astrometric = body.at(t)
             else:
                 astrometric = ephemerides[EARTH].at(t).observe(body)
-                if attr in {'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist'}:
+                if attr in {'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist','elong','elongation'}:
                     astrometric = astrometric.apparent()
             if attr in {'elong','elongation'}:
-                phase_angle = astrometric.phase_angle(ephemerides[SUN])
+                # There are 2 different definitions of elongation. One is the
+                # the apparent angle between the body and the Sun. The other 
+                # one is the angle projected to the ecliptic. I do not know
+                # for sure which one of them PyEphem uses, but here the real 
+                # apparent angle is used.
+                sun = ephemerides[EARTH].at(t).observe(ephemerides[SUN]).apparent()
+                elong = astrometric.separation_from(sun)
                 if attr=='elong':
-                    return phase_angle.degrees
-                vt = ValueTuple(phase_angle.radians,'radian','group_angle')
+                    return elong.degrees
+                vt = ValueTuple(elong.radians,'radian','group_angle')
             elif attr=='mag':
                 if isinstance(body,Star):
                     return stars.loc[int(self.heavenly_body[3:])]['magnitude']
@@ -672,13 +678,15 @@ class SkyfieldAlmanacBinder:
                     return float(planetary_magnitude(astrometric))
                 except (ValueError,TypeError):
                     return None
-            elif attr in {'sublat','sublong','sublatitude','sublongitude'}:
+            elif attr in {'sublat','sublong','sublatitude','sublongitude','elevation'}:
                 # https://rhodesmill.org/skyfield/coordinates.html#geographic-itrs-latitude-and-longitude
                 point = wgs84.geographic_position_of(astrometric)
                 if attr=='sublat':
                     return point.latitude.degrees
                 elif attr=='sublong':
                     return point.longitude.degrees
+                elif attr=='elevation':
+                    return point.elevation.m
                 elif attr=='sublatitude':
                     vt = ValueTuple(point.latitude.radians,'radian','group_angle')
                 elif attr=='sublongitude':
@@ -693,13 +701,18 @@ class SkyfieldAlmanacBinder:
                     return distance.km
                 elif attr=='earth_distance':
                     return distance.au
-                elif attr in {'size','radius'}:
+                elif attr in {'size','radius','radius_size'}:
                     radius = SIZES.get(self.heavenly_body.split('_')[0])
                     if radius is None or radius[0] is None or not distance.km:
-                        return None
-                    radius = radius[0]/distance.km
-                    if attr=='radius': return radius
-                    return radius*2.0*RAD2DEG*3600.0
+                        radius = None
+                    else:
+                        radius = radius[0]/distance.km
+                    if attr=='radius': 
+                        return radius
+                    if attr=='size': 
+                        return radius*2.0*RAD2DEG*3600.0 if radius is not None else None
+                    # `radius_size`
+                    vt = ValueTuple(radius,'radian','group_angle')
                 if attr in {'astro_ra','geo_ra'}:
                     vt = ValueTuple(ra._degrees,'degree_compass','group_direction')
                 elif attr in {'astro_dec','geo_dec'}:
