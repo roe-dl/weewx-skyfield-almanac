@@ -98,6 +98,8 @@ from skyfield.constants import DAY_S, DEG2RAD, RAD2DEG
 from skyfield.iokit import parse_tle_file
 from skyfield.magnitudelib import planetary_magnitude
 from skyfield.named_stars import named_star_dict
+from skyfield.framelib import ecliptic_frame
+from skyfield.units import Angle
 
 try:
     import pandas
@@ -260,6 +262,69 @@ def _get_observer(almanac_obj, target, use_center):
         horizon = None
     return observer, horizon, _get_body(target)
 
+def _pyephem_elongation(position):
+    """ calculate elongation
+    
+        PyEphem states that the elongation is set to negative
+        when the body is at the morning side of the sky.
+    
+        There are 2 different definitions of elongation. One is the
+        the apparent angle between the body and the Sun. The other 
+        one is the angle projected to the ecliptic. I do not know
+        for sure which one of them PyEphem uses, but here the real 
+        apparent angle is used.
+    """
+    # Get elongation
+    earth = sun_and_planets[position.center].at(position.t)
+    sun = earth.observe(ephemerides[SUN]).apparent()
+    elong = position.separation_from(sun)
+    # Check morning or evening side
+    # Note: The extrema of the elongation are not exactly at the difference
+    #       of the ecliptic longitude of 0.0° or 180.0°. Thus, if we are near
+    #       the extremum, we have to check whether we are before or after it.
+    _, lon_earth, _ = earth.frame_latlon(ecliptic_frame)
+    _, lon_body, _ = sun_and_planets[position.target].at(position.t).frame_latlon(ecliptic_frame)
+    dir = lon_body.degrees-lon_earth.degrees
+    if dir<0.0: dir += 360.0
+    logdbg('elong %s dir orig %s' % (elong,dir))
+    if dir<2.0 or dir>358.0:
+        # near lower conjunction or opposition
+        def func(t):
+            p = sun_and_planets[position.center].at(t)
+            return p.observe(sun_and_planets[position.target]).apparent().separation_from(p.observe(ephemerides[SUN]).apparent()).degrees
+        func.step_days = 30
+        if elong.degrees<90.0:
+            # lower conjunction 
+            t, v = find_minima(position.t-20, position.t+20, func)
+        else:
+            # opposition
+            t, v = find_maxima(position.t-20, position.t+20, func)
+        logdbg('elong position.t %s extremum.t %s' % (position.t,t))
+        if len(t)==1:
+            # check whether the actual timestamp is before or after the
+            # extremum
+            dir = 359.0 if position.t<t[0] else 1.0
+            logdbg('elong dir %s' % dir)
+    elif 178.0<dir<182.0:
+        # near upper conjunction
+        def func(t):
+            p = sun_and_planets[position.center].at(t)
+            return p.observe(sun_and_planets[position.target]).apparent().separation_from(p.observe(ephemerides[SUN]).apparent()).degrees
+        func.step_days = 30
+        t, v = find_minima(position.t-20, position.t+20, func)
+        loginf('elong position.t %s t %s' % (position.t,t))
+        if len(t)==1:
+            # check whether the actual timestamp is before or after the
+            # extremum
+            dir = 179.0 if position.t<t[0] else 181.0
+            loginf('elong dir %s' % dir)
+    if dir<180.0:
+        # morning side
+        return Angle(radians=-elong.radians)
+    else:
+        # evening side
+        return elong
+
 
 class SkyfieldAlmanacType(AlmanacType):
     """ Almanac extension to use the Skyfield module for almanac computation """
@@ -416,12 +481,14 @@ class SkyfieldAlmanacType(AlmanacType):
                 t, v = find_maxima(t0, t1, func)
             else:
                 t, v = find_minima(t0, t1, func)
+            """
             try:
                 if len(t)>1:
                     for tt,vv in zip(t.ut1,v):
                         loginf("%s %s %s" % (attr,tt,vv))
             except Exception as e:
                 logerr("%s %s" % (e.__class__.__name__,e))
+            """
             djd = skyfield_time_to_djd(t)
             return weewx.units.ValueHelper(ValueTuple(djd, "dublin_jd", "group_time"),
                                            context="ephem_year",
@@ -661,13 +728,11 @@ class SkyfieldAlmanacBinder:
                 if attr in {'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist','elong','elongation'}:
                     astrometric = astrometric.apparent()
             if attr in {'elong','elongation'}:
-                # There are 2 different definitions of elongation. One is the
-                # the apparent angle between the body and the Sun. The other 
-                # one is the angle projected to the ecliptic. I do not know
-                # for sure which one of them PyEphem uses, but here the real 
-                # apparent angle is used.
-                sun = ephemerides[EARTH].at(t).observe(ephemerides[SUN]).apparent()
-                elong = astrometric.separation_from(sun)
+                try:
+                    elong = _pyephem_elongation(astrometric)
+                except Exception as e:
+                    logerr('elongation %s %s' % (e.__class__.__name__,e))
+                    raise
                 if attr=='elong':
                     return elong.degrees
                 vt = ValueTuple(elong.radians,'radian','group_angle')
