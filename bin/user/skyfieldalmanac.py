@@ -714,6 +714,23 @@ class SkyfieldAlmanacBinder:
             astrometric = ephemerides[SUN].at(t).observe(body)
             return astrometric.distance().au
         
+        if attr in {'hlat','hlon','hlatitude','hlongitude'}:
+            t = timestamp_to_skyfield_time(self.almanac.time_ts)
+            body = _get_body(self.heavenly_body)
+            hlat, hlon, _ = body.at(t).frame_latlon(ecliptic_frame)
+            if attr=='hlat':
+                return hlat.degrees
+            elif attr=='hlon':
+                return hlon.degrees
+            elif attr=='hlatitude':
+                vt = ValueTuple(hlat.radians,'radian','group_angle')
+            else:
+                vt = ValueTuple(hlon.radians,'radian','group_angle')
+            return ValueHelper(vt,
+                               context="ephem_year",
+                               formatter=self.almanac.formatter,
+                               converter=self.almanac.converter)
+        
         if attr in {'astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist',
                     'earth_distance','elong','elongation','mag',

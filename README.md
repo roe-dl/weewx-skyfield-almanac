@@ -331,6 +331,8 @@ WeeWX datatype | Pure float result | Meaning
 `topo_ra` | `ra` | apparent topocentric right ascension
 `topo_dec` | `dec` | apparent topocentric declination
 `elongation` | `elong` | angle with Sun
+`hlatitude` | `hlat` | astrometric heliocentric latitude
+`hlongitude` | `hlon` | astrometric heliocentric longitude
 `sublatitude` | `sublat` | latitude below an earth satellite
 `sublongitude` | `sublong` | longitude below an earth satellite
 &mdash; | `elevation` | elevation of an earth satellite above the ellipsoid
