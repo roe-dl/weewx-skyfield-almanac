@@ -325,6 +325,51 @@ def _pyephem_elongation(position):
         # evening side
         return elong
 
+def planet_phase(planet, t):
+    """ phase of a planet at time t 
+    
+        Returns:
+            phase_angle: phase angle, 0=full 180°=new
+            dir: difference of ecliptic longitude
+            idx: phase index 0=new ... 4=full ...
+    """
+    # position of Earth at time t
+    e0 = ephemerides[EARTH].at(t)
+    # time the light needs to get from the planets to Earth
+    diff_t = e0.observe(planet).apparent().light_time
+    # timestamp when the light started at the planet to arrive at Earth at time t
+    try:
+        len(t)
+        tv = ts.tt_jd([x.tt for x in (t-diff_t)])
+    except TypeError:
+        tv = t - diff_t
+    # position of the planet at that time
+    v = planet.at(tv)
+    # direction of the Sun seen from the planet at that time
+    s = v.observe(ephemerides[SUN]).apparent()
+    # direction of the light starting at the planet to arrive at the position
+    # the Earth will be later on at time t
+    e = e0-v
+    # get the angle between the direction to the Sun and the direction
+    # to where the Earth will be
+    phase_angle = s.separation_from(e)
+    # difference of ecliptic longitude
+    _, e0_lon, e0_dist = e0.frame_latlon(ecliptic_frame)
+    _, v_lon, v_dist = v.frame_latlon(ecliptic_frame)
+    dir = v_lon.degrees-e0_lon.degrees
+    dir = numpy.where(dir>=0,dir,dir+360.0)
+    # phase index
+    if numpy.any(v_dist.au<e0_dist.au):
+        # inner planets
+        idx = numpy.where(dir<180.0,180.0-phase_angle.degrees,180.0+phase_angle.degrees)
+    else:
+        # outer planets
+        idx = numpy.fill_like(dir,180.0)
+    idx = (idx*8.0/360.0+0.5).astype(numpy.uint8)&7
+    # return the angle between the direction to the Sun and the direction
+    # to where the Earth will be
+    return phase_angle, dir, idx
+
 
 class SkyfieldAlmanacType(AlmanacType):
     """ Almanac extension to use the Skyfield module for almanac computation """
@@ -500,6 +545,16 @@ class SkyfieldAlmanacType(AlmanacType):
             moon_index = int((position * 8) + 0.5) & 7
             if attr=='moon_index': return moon_index
             return almanac_obj.moon_phases[moon_index]
+        elif attr in {'venus_phase','venus_index'}:
+            _, _, idx = planet_phase(ephemerides['venus'],time_ti)
+            if attr=='venus_index': return idx
+            phases = almanac_obj.__dict__.get('venus_phases',['new','waxing crescent','half','waxing gibbous','full','waning gibbous','half','waning crescent','N/A'])
+            return phases[idx]
+        elif attr in {'mercury_phase','mercury_index'}:
+            _, _, idx = planet_phase(ephemerides['mercury'],time_ti)
+            if attr=='mercury_index': return idx
+            phases = almanac_obj.__dict__.get('mercury_phases',['new','waxing crescent','half','waxing gibbous','full','waning gibbous','half','waning crescent','N/A'])
+            return phases[idx]
         # Check to see if the attribute is a sidereal angle
         elif attr == 'sidereal_time' or attr == 'sidereal_angle':
             # Local Apparent Sidereal Time (LAST)
@@ -808,7 +863,7 @@ class SkyfieldAlmanacBinder:
         
         observer, horizon, body = _get_observer(
                                self.almanac,self.heavenly_body,self.use_center)
-
+        
         previous = attr.startswith('previous_')
         next = attr.startswith('next_')
         
@@ -839,7 +894,8 @@ class SkyfieldAlmanacBinder:
                 position = (body-station).at(ti)
             else:
                 position = observer.at(ti).observe(body).apparent()
-            if attr=='moon_fullness':
+            if attr==('%s_fullness' % self.heavenly_body.lower()):
+                # `moon_fullness`, `venus_fullness`, `mercury_fullness`
                 return position.fraction_illuminated(ephemerides[SUN])*100.0
             if attr in {'az','alt','alt_dist','azimuth','altitude','alt_distance'}:
                 alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)

@@ -9,6 +9,7 @@ Almanac extension to WeeWX using Skyfield module
 * [Configuration instructions](#configuration-instructions)
 * [Usage](#usage)
 * [Customization of WeeWX using this extension](#customization-of-weewx-using-this-extension)
+  * [General attributes](#general-attributes)
   * [Date and time](#date-and-time)
   * [Calendar events](#calendar-events)
   * [Heavenly bodies](#heavenly-bodies)
@@ -207,6 +208,31 @@ If `almanac_time` is not specified, the actual time as returned by
 Latitude and longitude refer to the WGS84 ellipsoid as used by GPS.
 If `lat` and `lon` are not specified, the location of the station is used.
 
+### General attributes
+
+General attributes do not require a heavenly body. They provide general
+information or are shortcuts for other attributes.
+
+Attribute | Data type | Meaning
+----------|-----------|---------
+`hasExtras` | bool | becomes `True` after initialization is finished
+`sunrise` | `group_time` | shortcut for `$almanac.sun.rise`
+`sunset` | `group_time` | shortcut for `$almanac.sun.set`
+`moon_fullness` | int | `$almanac.moon.moon_fullness` in percent rounded to integer
+`moon_index` | int | moon phase index (0 to 7)
+`moon_phase` | str | name of the actual moon phase in local language
+`moon_phases` | list | names of the moon phases in local language
+
+Additionally this WeeWX almanac extension provides the following general
+attribues:
+
+Attribute | Data type | Meaning
+----------|-----------|--------
+`venus_index` | int | venus phase index (0 to 7)
+`venus_phase` | str | name of the actual venus phase
+`mercury_index` | int | mercury phase index (0 to 7)
+`mercury_phase` | str | name of the actual mercury phase
+
 ### Date and time
 
 Date and time values do not require a heavenly body. They refer to the
@@ -316,6 +342,8 @@ WeeWX datatype | Pure float result | Meaning
 `day_max_altitude` | `day_max_alt` | maximum altitude of the day
 `day_max_alt_time` | &mdash;       | timestamp of the maximum altitude of the day
 &mdash; | `hip_number` | in case of stars the Hipparcos catalog number
+&mdash; | `venus_fullness` | percentage of Venus that is illuminated
+&mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
 
 And these attributes are supported by both core WeeWX using PyEphem and
 this extension using Skyfield:
@@ -342,6 +370,7 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `name` (str) | language independent name of the celestial object
 &mdash; | `size` | diameter in arcseconds
 `radius_size` | `radius` | radius in radians
+&mdash; | `moon_fullness` | percentage of the Moon surface that is illuminated
 
 Try
 

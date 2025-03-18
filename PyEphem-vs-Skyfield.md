@@ -27,6 +27,15 @@ including earth satellites and stars and different timespans.
 The following tables only include additional attributes available with the 
 Skyfield based almanac but not with the PyEphem based one.
 
+### General attributes
+
+Attribute | Data type | Meaning
+----------|-----------|--------
+`venus_index` | int | venus phase index (0 to 7)
+`venus_phase` | str | name of the actual venus phase
+`mercury_index` | int | mercury phase index (0 to 7)
+`mercury_phase` | str | name of the actual mercury phase
+
 ### Date and time
 
 WeeWX datatype   | Pure float result | Meaning
@@ -57,6 +66,8 @@ WeeWX datatype | Pure float result | Meaning
 `day_max_altitude` | `day_max_alt` | maximum altitude of the day
 `day_max_alt_time` | &mdash;       | timestamp of the maximum altitude of the day
 &mdash; | `hip_number` | in case of stars the Hipparcos catalog number
+&mdash; | `venus_fullness` | percentage of Venus that is illuminated
+&mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
 
 ### Maps
 
