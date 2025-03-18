@@ -384,7 +384,9 @@ class SkyfieldAlmanacType(AlmanacType):
         'new_moon':(0,),
         'first_quarter_moon':(1,),
         'full_moon':(2,),
-        'last_quarter_moon':(3,)
+        'last_quarter_moon':(3,),
+        'first_quarter_venus':(False,),
+        'last_quarter_venus':(True,)
     }
 
     @property
@@ -421,12 +423,23 @@ class SkyfieldAlmanacType(AlmanacType):
                       'previous_new_moon', 'next_new_moon',
                       'previous_first_quarter_moon', 'next_first_quarter_moon',
                       'previous_full_moon', 'next_full_moon',
-                      'previous_last_quarter_moon', 'next_last_quarter_moon'}:
+                      'previous_last_quarter_moon', 'next_last_quarter_moon',
+                      'previous_first_quarter_venus','next_first_quarter_venus',
+                      'previous_last_quarter_venus','next_last_quarter_venus'}:
             previous = attr.startswith('previous')
             if attr.endswith('_moon'):
                 # moon phases
                 interval = 2592000
                 func = almanac.moon_phases
+            elif attr.endswith('_venus'):
+                # venus phases
+                interval = 50457600
+                def func(eph):
+                    venus = eph['venus']
+                    def phase_at(t):
+                        return planet_phase(venus,t)[0].degrees>=90.0
+                    phase_at.step_days = 30
+                    return phase_at
             else:
                 # seasons
                 interval = 31557600
@@ -448,7 +461,7 @@ class SkyfieldAlmanacType(AlmanacType):
             t0 = timestamp_to_skyfield_time(almanac_obj.time_ts,t0)
             t1 = timestamp_to_skyfield_time(almanac_obj.time_ts,t1)
             # find the events
-            t, y  = almanac.find_discrete(t0,t1,func(sun_and_planets))
+            t, y  = almanac.find_discrete(t0,t1,func(ephemerides))
             # in case of previous events search from the last event on
             if previous:
                 t = reversed(t)
@@ -463,66 +476,54 @@ class SkyfieldAlmanacType(AlmanacType):
                                            formatter=almanac_obj.formatter,
                                            converter=almanac_obj.converter)
         elif attr in {'previous_aphelion','next_aphelion',
-                      'previous_perihelion','next_perihelion'}:
+                      'previous_perihelion','next_perihelion',
+                      'previous_apogee_moon','next_apogee_moon',
+                      'previous_perigee_moon','next_perigee_moon',
+                      'previous_new_venus','next_new_venus',
+                      'previous_full_venus','next_full_venus'}:
+            earth = ephemerides[EARTH]
+            if attr.endswith('helion'):
+                # aphelion, perihelion
+                interval = 31557600
+                sun = ephemerides[SUN]
+                # Note: In method `skyfield.searchlib._identify_maxima()` there
+                #       is a comment reading "Also choose the midpoint between
+                #       the edges of a plateau, if both edges are in view."
+                #       Therefore we assume we can round the result to avoid
+                #       comparing tenth of millimetres which are for sure no
+                #       real differences.
+                def func(t):
+                    return numpy.round(earth.at(t).observe(sun).apparent().distance().km,1)
+                func.step_days = 90.0
+            elif attr.endswith('gee_moon'):
+                # apogee, perigee of the Moon
+                interval = 2592000
+                moon = ephemerides[EARTHMOON]
+                def func(t):
+                    return numpy.round(earth.at(t).observe(moon).apparent().distance().km,1)
+                func.step_days = 7.0
+            elif attr.endswith('_venus'):
+                # phases of the Venus
+                interval = 50457600
+                venus = ephemerides['venus']
+                def func(t):
+                    return planet_phase(venus,t)[0].degrees
+                func.step_days = 30
             if attr.startswith('previous_'):
-                t0 = -31557600
+                # last previous event
+                t0 = -interval
                 t1 = 0
                 idx = -1
             else:
+                # next event
                 t0 = 0
-                t1 = 31557600
+                t1 = interval
                 idx = 0
             # time interval to look for events
             t0 = timestamp_to_skyfield_time(almanac_obj.time_ts,t0)
             t1 = timestamp_to_skyfield_time(almanac_obj.time_ts,t1)
-            # function
-            # Note: In method `skyfield.searchlib._identify_maxima()` there
-            #       is a comment reading "Also choose the midpoint between
-            #       the edges of a plateau, if both edges are in view."
-            #       Therefore we assume we can round the result to avoid
-            #       comparing tenth of millimetres which are for sure no
-            #       real differences.
-            earth = ephemerides[EARTH]
-            sun = ephemerides[SUN]
-            def func(t):
-                return numpy.round(earth.at(t).observe(sun).apparent().distance().km,1)
-            func.step_days = 90.0
             # find event
-            if attr.endswith('aphelion'):
-                t, v = find_maxima(t0, t1, func)
-            else:
-                t, v = find_minima(t0, t1, func)
-            """
-            try:
-                if len(t)>1:
-                    for tt,vv in zip(t.ut1,v):
-                        loginf("%s %s %s" % (attr,tt,vv))
-            except Exception as e:
-                logerr("%s %s" % (e.__class__.__name__,e))
-            """
-            djd = skyfield_time_to_djd(t)
-            return weewx.units.ValueHelper(ValueTuple(djd, "dublin_jd", "group_time"),
-                                           context="ephem_year",
-                                           formatter=almanac_obj.formatter,
-                                           converter=almanac_obj.converter)
-        elif attr in {'previous_apogee_moon','next_apogee_moon',
-                      'previous_perigee_moon','next_perigee_moon'}:
-            if attr.startswith('previous_'):
-                t0 = -2592000
-                t1 = 0
-                idx = -1
-            else:
-                t0 = 0
-                t1 = 2592000
-                idx = 0
-            t0 = timestamp_to_skyfield_time(almanac_obj.time_ts,t0)
-            t1 = timestamp_to_skyfield_time(almanac_obj.time_ts,t1)
-            earth = ephemerides[EARTH]
-            moon = ephemerides[EARTHMOON]
-            def func(t):
-                return numpy.round(earth.at(t).observe(moon).apparent().distance().km,1)
-            func.step_days = 7.0
-            if 'apogee' in attr:
+            if attr.endswith('aphelion') or 'apogee' in attr or 'new' in attr:
                 t, v = find_maxima(t0, t1, func)
             else:
                 t, v = find_minima(t0, t1, func)
@@ -541,7 +542,7 @@ class SkyfieldAlmanacType(AlmanacType):
                                            converter=almanac_obj.converter)
         time_ti = timestamp_to_skyfield_time(almanac_obj.time_ts)
         if attr in {'moon_phase','moon_index'}:
-            position = almanac.moon_phase(sun_and_planets, time_ti).degrees/360.0
+            position = almanac.moon_phase(ephemerides, time_ti).degrees/360.0
             moon_index = int((position * 8) + 0.5) & 7
             if attr=='moon_index': return moon_index
             return almanac_obj.moon_phases[moon_index]
@@ -670,7 +671,7 @@ class SkyfieldAlmanacBinder:
         t1 = timestamp_to_skyfield_time(timespan[1])
         if SKYFIELD_VERSION<(1,47):
             # outdated function
-            tx, yx = almanac.find_discrete(t0, t1, almanac.risings_and_settings(sun_and_planets, body, wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)))
+            tx, yx = almanac.find_discrete(t0, t1, almanac.risings_and_settings(ephemerides, body, wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)))
             change = [(t,y==1) for t,y in zip(tx.tai,yx) if y in (0,1)]
         else:
             # actual function
@@ -770,9 +771,12 @@ class SkyfieldAlmanacBinder:
             return astrometric.distance().au
         
         if attr in {'hlat','hlon','hlatitude','hlongitude'}:
+            # astrometric heliocentric latitude and longitude
+            # https://github.com/skyfielders/python-skyfield/discussions/1029
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
-            hlat, hlon, _ = body.at(t).frame_latlon(ecliptic_frame)
+            #hlat, hlon, _ = body.at(t).frame_latlon(ecliptic_frame)
+            hlat, hlon, _ = ephemerides[SUN].at(t).observe(body).frame_latlon(ecliptic_frame)
             if attr=='hlat':
                 return hlat.degrees
             elif attr=='hlon':
@@ -975,10 +979,10 @@ class SkyfieldAlmanacBinder:
             try:
                 if SKYFIELD_VERSION<(1,47):
                     if self.heavenly_body==SUN and horizon<(-0.8333):
-                        f = almanac.dark_twilight_day(sun_and_planets, station)
+                        f = almanac.dark_twilight_day(ephemerides, station)
                         what = int(4+horizon/6.0)
                     else:
-                        f = almanac.risings_and_settings(sun_and_planets, body, station)
+                        f = almanac.risings_and_settings(ephemerides, body, station)
                         what = 1
                     t, y = almanac.find_discrete(t0, t1, f)
                     t = [i for i,j in zip(t,y) if j==what]
@@ -1002,7 +1006,7 @@ class SkyfieldAlmanacBinder:
             # setting
             try:
                 if SKYFIELD_VERSION<(1,47):
-                    f = almanac.risings_and_settings(sun_and_planets, body, station)
+                    f = almanac.risings_and_settings(ephemerides, body, station)
                     t, y = almanac.find_discrete(t0, t1, f)
                     t = [i for i,j in zip(t,y) if j==0]
                     y = True
@@ -1024,7 +1028,7 @@ class SkyfieldAlmanacBinder:
         elif evt=='transit':
             # meridian transit
             if SKYFIELD_VERSION<(1,47):
-                f = almanac.meridian_transits(sun_and_planets, body, station)
+                f = almanac.meridian_transits(ephemerides, body, station)
                 t, y = almanac.find_discrete(t0, t1, f)
                 t = [i for i,j in zip(t,y) if j==1]
                 y = len(t)>=1
