@@ -90,7 +90,7 @@ import weeutil
 import numpy
 from skyfield import VERSION as SKYFIELD_VERSION
 from skyfield import almanac
-from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star
+from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star, Angle
 from skyfield.earthlib import refraction
 from skyfield.searchlib import find_discrete, find_maxima, find_minima
 from skyfield.data import iers
@@ -99,7 +99,6 @@ from skyfield.iokit import parse_tle_file
 from skyfield.magnitudelib import planetary_magnitude
 from skyfield.named_stars import named_star_dict
 from skyfield.framelib import ecliptic_frame
-from skyfield.units import Angle
 
 try:
     import pandas
@@ -650,6 +649,12 @@ class SkyfieldAlmanacBinder:
     def __call__(self, use_center=False):
         self.use_center = use_center
         return self
+
+    def __str__(self):
+        """ SkyfieldAlmanacBinder cannot be printed itself. It always needs an 
+            attribute.
+        """
+        raise AttributeError(self.heavenly_body)
 
     @property
     def visible(self):

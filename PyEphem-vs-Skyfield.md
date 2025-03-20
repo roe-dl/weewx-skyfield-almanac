@@ -1,7 +1,7 @@
 # What is the difference between PyEphem based and Skyfield based WeeWX almanac?
 
-See [README](README.md) for detailled information and manual. This is a
-summary here.
+See [README](README.md) for detailled information and manual. This is just a
+summary.
 
 ## History
 
@@ -21,6 +21,17 @@ PyEphem includes built-in data which are not updated any more.
 Skyfield is based on downloadable files which are updated regularly. A lot
 of different files are available covering different kinds of heavenly objects
 including earth satellites and stars and different timespans.
+
+## Additions
+
+As there is sidereal time, there is also solar time. Solar time is more
+related to the daily course of the weather than civil or timezone time.
+
+Like the seasons the apsides (perihelion, aphelion, perigee, apogee) are 
+events during the course of the year or the month, respectively.
+
+Like the Moon Venus and Mercury show phases. There is a current phase, and
+there are distinct events.
 
 ## Almanac attributes
 
