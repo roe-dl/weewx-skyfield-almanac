@@ -17,6 +17,7 @@ Almanac extension to WeeWX using Skyfield module
   * [Maps](#maps)
   * [Coordinate systems](#coordinate-systems)
   * [Units](#units)
+  * [Localization](#localization)
 * [PyEphem and Skyfield](#pyephem-and-skyfield)
 * [Live data](#live-data)
 * [Base data for calculation](#base-data-for-calculation)
@@ -548,6 +549,36 @@ Despite the compass direction originates at north, the unit `degree_compass`
 is used for other angles with other origins within WeeWX, too. They only have 
 in common that they are measured within the base plane of the respective 
 coordinate system.
+
+### Localization
+
+To adapt skins to local languages, WeeWX uses language files. These files
+include an `[Almanac]` section that contains at least one key called 
+`moon_phases`. This WeeWX almanac extension also uses the value of that key 
+to name the moon phases.
+
+The same applies to compass directions which come from `directions` in
+section `[Units]`, sub-section `[[Ordinates]]`.
+
+If there are no language files in your skin, look into `skin.conf` for
+those sections and keys. If even there they are missing, they could be
+found within `weewx.conf` in section `StdReport`.
+
+As this extension provides additional attributes, additional localization
+data is required, too. The following keys are used:
+
+* `venus_phases`: The same as moon phases but for Venus.
+* `mercury_phases`: The same as moon phases but for Mercury.
+* `planet_names`: List of the names of the planets of the solar system,
+  sorted by their distance to the Sun, including Earth and Pluto.
+
+Put those keys into the `Almanac` section of the appropriate language
+file of your skin.
+
+Please note, that there is no difference in the names of the phases of
+Moon, Venus, and Mercury in English, but in other languages.
+
+You can also use those keys as parameters to the `$almanac` tag.
 
 ## PyEphem and Skyfield
 

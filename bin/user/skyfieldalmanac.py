@@ -85,6 +85,7 @@ from weewx.almanac import AlmanacType, almanacs, timestamp_to_djd
 from weewx.engine import StdService
 from weewx.units import ValueTuple, ValueHelper, std_groups, Formatter
 import weeutil
+import weewx.defaults
 
 # Import Skyfield modules
 import numpy
@@ -111,6 +112,8 @@ except ImportError:
 #       included in JPL's ephemeris files of planets. Therefore it is
 #       included here, too.
 PLANETS = ('mercury','venus','earth','mars','jupiter','saturn','uranus','neptune','pluto')
+PLANETS_IDX = {j:i for i,j in enumerate(PLANETS)}
+PLANETS_IDX.update({'%s_barycenter' % i:j for i,j in PLANETS_IDX.items() if j>2})
 SUN = 'sun'
 EARTH = PLANETS[2]
 EARTHMOON = 'moon'
@@ -148,8 +151,10 @@ SIZES = {
     # https://nssdc.gsfc.nasa.gov/planetary/factsheet/plutofact.html
     'pluto':   ( 1188,     1188,     1188    ),
 }
-MEAN_MOON_RADIUS_KM = SIZES['moon'][2]
-SUN_RADIUS_KM = SIZES['sun'][2]
+MEAN_MOON_RADIUS_KM = SIZES[EARTHMOON][2]
+SUN_RADIUS_KM = SIZES[SUN][2]
+
+DEFAULT_PHASES = weewx.defaults.defaults['Almanac']['moon_phases']
 
 # Global variables
 ts = None
@@ -260,6 +265,11 @@ def _get_observer(almanac_obj, target, use_center):
     else:
         horizon = None
     return observer, horizon, _get_body(target)
+
+def _get_phases(almanac_obj, body):
+    """ list of phases """
+    key = '%s_phases' % body
+    return almanac_obj.__dict__.get(key,almanac_obj.__dict__.get('texts',dict()).get(key,DEFAULT_PHASES))
 
 def _pyephem_elongation(position):
     """ calculate elongation
@@ -544,17 +554,15 @@ class SkyfieldAlmanacType(AlmanacType):
             position = almanac.moon_phase(ephemerides, time_ti).degrees/360.0
             moon_index = int((position * 8) + 0.5) & 7
             if attr=='moon_index': return moon_index
-            return almanac_obj.moon_phases[moon_index]
+            return _get_phases(almanac_obj,'moon')[moon_index]
         elif attr in {'venus_phase','venus_index'}:
             _, _, idx = planet_phase(ephemerides['venus'],time_ti)
             if attr=='venus_index': return idx
-            phases = almanac_obj.__dict__.get('venus_phases',['new','waxing crescent','half','waxing gibbous','full','waning gibbous','half','waning crescent','N/A'])
-            return phases[idx]
+            return _get_phases(almanac_obj,'venus')[idx]
         elif attr in {'mercury_phase','mercury_index'}:
             _, _, idx = planet_phase(ephemerides['mercury'],time_ti)
             if attr=='mercury_index': return idx
-            phases = almanac_obj.__dict__.get('mercury_phases',['new','waxing crescent','half','waxing gibbous','full','waning gibbous','half','waning crescent','N/A'])
-            return phases[idx]
+            return _get_phases(almanac_obj,'mercury')[idx]
         # Check to see if the attribute is a sidereal angle
         elif attr == 'sidereal_time' or attr == 'sidereal_angle':
             # Local Apparent Sidereal Time (LAST)
@@ -734,6 +742,13 @@ class SkyfieldAlmanacBinder:
             The `name` attribute is supported by the PyEphem almanac, too, but
             it is not documented in the customization guide of WeeWX.
         """
+        planet_names = self.almanac.__dict__.get('planet_names',self.almanac.__dict__.get('texts',dict()).get('planet_names'))
+        if planet_names:
+            # If there is a list of the planets' names in local language
+            # in the language file, try it.
+            idx = PLANETS_IDX.get(self.heavenly_body)
+            if idx is not None and idx<len(planet_names):
+                return planet_names[idx]
         body = _get_body(self.heavenly_body)
         if isinstance(body,Star):
             # If `_get_body()` returned an instance of class `Star`,
