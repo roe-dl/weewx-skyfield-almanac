@@ -131,6 +131,8 @@ available if you have special requirements.
         use_builtin_timescale = true
         # URL(s) of the timescale file (optional)
         timescale_url = '...'
+        # whether to load Skyfield's built-in constellation map
+        load_constellation_map = true
         # whether to log FTP responses (optional)
         log_ftp = false
         # update interval 1 year (set to 0 for no update)
@@ -157,6 +159,8 @@ available if you have special requirements.
   There is a default URL hardcoded in Skyfield. Unfortunately the server
   is temporarily down. That's why you can specify an alternative
   source here.
+* `load_constellation_map`: Whether to load Skyfield's built-in
+  constellation map (optional, default `True`)
 * `log_ftp`: whether to log FTP responses of the server (optional).
   If you specified an alternative source for the timescale file in 
   `timescale_url` and that URL is at an FTP server, you can switch
@@ -349,6 +353,8 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `hip_number` | in case of stars the Hipparcos catalog number
 &mdash; | `venus_fullness` | percentage of Venus that is illuminated
 &mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
+&mdash; | `constellation` | name of the constellation the actual position of the body is in
+&mdash; | `constellation_abbr` | abbrevation of the constellation the actual position of the body is in
 
 And these attributes are supported by both core WeeWX using PyEphem and
 this extension using Skyfield:
@@ -769,4 +775,5 @@ A: There is nothing to do. Installing this extension is enough. But you
 * [Issue #981: PyEphem is deprecated](https://github.com/weewx/weewx/issues/981)
 * [International Terrestrial Reference System ITRS](https://en.wikipedia.org/wiki/International_Terrestrial_Reference_System_and_Frame)
 * [ESA's Hipparcos mission and catalog](https://www.cosmos.esa.int/web/hipparcos/home)
+* [The brightest stars in the Hipparcos catalogue](https://www.cosmos.esa.int/web/hipparcos/brightest)
 * [CelesTrak](https://celestrak.org)

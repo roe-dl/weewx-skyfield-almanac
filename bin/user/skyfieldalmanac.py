@@ -62,6 +62,10 @@
     temperature(float): temperature in **degrees Celsius**
     pressure(float):    pressure in **mbar**
     horizon(float):     horizon in degrees
+    moon_phases(list):  moon phases in local language
+    venus_phases(list): venus phases in local language
+    mercury_phases(list): mercury phases in local language
+    planet_names(list): names of the planets in local language
     
 """
 
@@ -163,7 +167,9 @@ sun_and_planets = None
 stars = None
 starnames = dict() # HIP number to name
 starids = dict()   # name to HIP number
-planets_list = []
+constellation_at = None # constellation function
+constellation_names = None # dictionary of abbrevations to names
+planets_list = []  # list of planets with available ephemeris
 
 # Unit group and unit used for true solar time and local mean time
 for _, unitgroup in weewx.units.std_groups.items():
@@ -776,7 +782,7 @@ class SkyfieldAlmanacBinder:
 
     def __getattr__(self, attr):
         """Get the requested observation, such as when the body will rise."""
-        global ephemerides
+        global ephemerides, constellation_names
         # Don't try any attributes that start with a double underscore, or any of these
         # special names: they are used by the Python language:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
@@ -814,7 +820,8 @@ class SkyfieldAlmanacBinder:
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist',
                     'earth_distance','elong','elongation','mag',
                     'sublat','sublong','sublatitude','sublongitude',
-                    'elevation','size','radius','radius_size'}:
+                    'elevation','size','radius','radius_size',
+                    'constellation','constellation_abbr'}:
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
             if isinstance(body,EarthSatellite):
@@ -839,6 +846,14 @@ class SkyfieldAlmanacBinder:
                     return float(planetary_magnitude(astrometric))
                 except (ValueError,TypeError):
                     return None
+            elif attr in {'constellation','constellation_abbr'}:
+                # Which constellation the position belongs to?
+                if constellation_at:
+                    abbr = constellation_at(astrometric)
+                    if attr=='constellation_abbr': return abbr
+                    if abbr and constellation_names:
+                        return constellation_names[abbr]
+                return 'N/A'
             elif attr in {'sublat','sublong','sublatitude','sublongitude','elevation'}:
                 # https://rhodesmill.org/skyfield/coordinates.html#geographic-itrs-latitude-and-longitude
                 point = wgs84.geographic_position_of(astrometric)
@@ -1169,6 +1184,9 @@ class SkyfieldMaintenanceThread(threading.Thread):
         self.earthsatellites = alm_conf_dict['EarthSatellites']
         loginf("timescale: %s, update interval: %.2f days" % ('builtin' if self.builtin else 'IERS file',self.update_interval/DAY_S))
         loginf("ephemeris file(s): %s" % self.eph_files)
+        # Constellations
+        if weeutil.weeutil.to_bool(alm_conf_dict.get('load_constellation_map',True)):
+            self.init_constellation_map()
         # Used to inform the thread about shutdown
         self.evt = threading.Event()
         self.running = True
@@ -1215,6 +1233,13 @@ class SkyfieldMaintenanceThread(threading.Thread):
             #ephemerides = None
             #for _eph in self.spk: _eph.close()
             loginf("thread '%s': stopped" % self.name)
+    
+    def init_constellation_map(self):
+        """ load Skyfield's built-in constellation map """
+        global constellation_at, constellation_names
+        import skyfield.constellationlib
+        constellation_at = skyfield.constellationlib.load_constellation_map()
+        constellation_names = dict(skyfield.constellationlib.load_constellation_names())
 
     def init_starnames(self):
         """ init star names dictionary """

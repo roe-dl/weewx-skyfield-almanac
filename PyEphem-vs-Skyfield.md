@@ -83,6 +83,8 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `hip_number` | in case of stars the Hipparcos catalog number
 &mdash; | `venus_fullness` | percentage of Venus that is illuminated
 &mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
+&mdash; | `constellation_abbr` | abbrevation of the constellation the actual position of the body is in
+&mdash; | `constellation` | name of the constellation the actual position of the body is in
 
 ### Maps
 
