@@ -66,6 +66,8 @@
     venus_phases(list): venus phases in local language
     mercury_phases(list): mercury phases in local language
     planet_names(list): names of the planets in local language
+    formatter (Formatter): 
+    converter (Converter):
     
 """
 

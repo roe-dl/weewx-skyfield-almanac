@@ -27,6 +27,7 @@ Almanac extension to WeeWX using Skyfield module
   * [Earth satellites and space debris orbital data](#earth-satellites-and-space-debris-orbital-data)
   * [Stars](#stars)
 * [FAQ](#faq)
+* [Credits](#credits)
 * [Links](#links)
 
 ## Why should I use this extension?
@@ -762,6 +763,10 @@ A: There is nothing to do. Installing this extension is enough. But you
    could add the additional attributes supported by this extension
    to your skin to display them there.
 
+## Credits
+
+* [Tom Keffer et al. (WeeWX)](https://github.com/weewx/weewx)
+* [Brandon Rhodes (Skyfield)](https://github.com/skyfielders/python-skyfield)
 
 ## Links
 
