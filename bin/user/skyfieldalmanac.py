@@ -251,7 +251,7 @@ def _get_body(body):
         return Star.from_dataframe(stars.loc[x])
     return ephemerides[body]
 
-def _get_observer(almanac_obj, target, use_center):
+def _get_observer(almanac_obj, target, use_center, with_refraction=True):
     """ get observer object and refraction angle """
     global ephemerides
     # a location on earth surface
@@ -267,12 +267,15 @@ def _get_observer(almanac_obj, target, use_center):
             if target.lower()==SUN: horizon -= 16.0/60.0
         # `refraction()` returns the influence of refraction only. It does
         # not include the horizon into the result.
-        refr = refraction(
-            horizon,
-            temperature_C=almanac_obj.temperature,
-            pressure_mbar=almanac_obj.pressure
-        )
-        horizon -= refr
+        # Zero refraction is returned both for objects very near the zenith,
+        # as well as for objects more than one degree below the horizon.
+        if with_refraction:
+            refr = refraction(
+                horizon,
+                temperature_C=almanac_obj.temperature,
+                pressure_mbar=almanac_obj.pressure
+            )
+            horizon -= refr
     else:
         horizon = None
     return observer, horizon, _get_body(target)
@@ -1159,7 +1162,7 @@ class SkyfieldAlmanacBinder:
                 TimeSpan: timespan the body is up
         """
         # observer
-        observer, horizon, body = _get_observer(self.almanac,self.heavenly_body,self.use_center)
+        observer, horizon, body = _get_observer(self.almanac,self.heavenly_body,self.use_center,with_refraction=False)
         # determine the timespan to search
         if timespan is None:
             if context=='month':
@@ -1171,14 +1174,18 @@ class SkyfieldAlmanacBinder:
         t0 = timestamp_to_skyfield_time(timespan[0])
         t1 = timestamp_to_skyfield_time(timespan[1])
         # get risings and settings during the timespan
-        tri, yri = almanac.find_risings(observer, body, t0, t1)
-        tse, yse = almanac.find_settings(observer, body, t0, t1)
+        tri, yri = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
+        tse, yse = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
         # if a database manager is available look up temperature and pressure
         # and adjust for refraction
-        if archive:
-            body_radius_degrees = 16/60
-            hori_rise = _database_refraction(archive,tri,-body_radius_degrees)+body_radius_degrees
-            hori_set = _database_refraction(archive,tse,-body_radius_degrees)+body_radius_degrees
+        if archive and self.almanac.horizon>-1.0:
+            if self.use_center:
+                body_radius_degrees = 0.0
+            else:
+                # TODO: other bodies than the Sun
+                body_radius_degrees = 16/60
+            hori_rise = _database_refraction(archive,tri,-body_radius_degrees)+body_radius_degrees-self.almanac.horizon
+            hori_set = _database_refraction(archive,tse,-body_radius_degrees)+body_radius_degrees-self.almanac.horizon
             tri, yri = _adjust_to_refraction(observer, body, tri, yri, horizon_degrees=-hori_rise)
             tse, yse = _adjust_to_refraction(observer, body, tse, yse, horizon_degrees=-hori_set)
         # convert to `unix_epoch` timestamps
