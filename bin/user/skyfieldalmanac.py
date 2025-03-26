@@ -415,6 +415,8 @@ def _database_refraction(archive, ti, alt_degrees):
             press = 1013.25
         temperature.append(temp)
         pressure.append(press)
+    temperature = numpy.array(temperature)
+    pressure = numpy.array(pressure)
     return refraction(alt_degrees,temperature,pressure)
 
 def _adjust_to_refraction(observer, body, t, y, horizon_degrees=None):
