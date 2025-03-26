@@ -90,7 +90,7 @@ import weewx
 from weewx.almanac import AlmanacType, almanacs, timestamp_to_djd
 from weewx.engine import StdService
 from weewx.units import ValueTuple, ValueHelper, std_groups, Formatter
-import weeutil
+import weeutil.weeutil
 import weewx.defaults
 
 # Import Skyfield modules
@@ -233,6 +233,9 @@ def skyfield_time_to_djd(ti):
             float: the same timestamp as Dublin Julian Date
     """
     return ti.ut1-ti.dut1/DAY_S-2415020.0
+
+def skyfield_time_to_timestamp(ti):
+    return (ti.ut1-ti.dut1/DAY_S-2440587.5)*DAY_S
 
 def hip_to_starname(hip, default=None):
     """ convert Hipparcos catalogue number to the name of the star """
@@ -386,6 +389,34 @@ def planet_phase(planet, t):
     # return the angle between the direction to the Sun and the direction
     # to where the Earth will be
     return phase_angle, dir, idx
+
+def _database_refraction(archive, ti, alt_degrees):
+    """ lookup temperature and pressure for the timestamps ti """
+    temperature = []
+    pressure = []
+    for event in skyfield_time_to_timestamp(ti):
+        rec = archive.getRecord(event, max_delta=3600)
+        if rec is not None:
+            if 'outTemp' in rec:
+                temp = weewx.units.convert(weewx.units.as_value_tuple(rec, 'outTemp'), "degree_C")[0]
+                if temp is None: temp = 15.0
+            else:
+                temp = 15.0
+            if 'barometer' in rec:
+                press = weewx.units.convert(weewx.units.as_value_tuple(rec, 'barometer'), "mbar")[0]
+                if press is None: press = 1013.25
+            else:
+                press = 1013.25
+        else:
+            temp = 15.0
+            press = 1013.25
+        temperature.append(temp)
+        pressure.append(press)
+    return refraction(alt_degrees,temperature,pressure)
+
+def _adjust_to_refraction(observer, body, t, y, horizon_degrees=None):
+    """ adjust to refraction """
+    return t, y
 
 
 class SkyfieldAlmanacType(AlmanacType):
@@ -1113,6 +1144,54 @@ class SkyfieldAlmanacBinder:
                                            context="ephem_day",
                                            formatter=self.almanac.formatter,
                                            converter=self.almanac.converter)
+
+    def genVisibleTimeSpans(self, context=None, timespan=None, archive=None):
+        """ generator function returning uptimes of body
+        
+            Args:
+                context(str): name of the timespan to search, optional
+                timespan(TimeSpan): timespan to search, optional, if provided
+                    `almanac_time` and `context` are ignored
+                archive(Manager): database manager to look up temperature and
+                    pressure
+            
+            Returns:
+                TimeSpan: timespan the body is up
+        """
+        # observer
+        observer, horizon, body = _get_observer(self.almanac,self.heavenly_body,self.use_center)
+        # determine the timespan to search
+        if timespan is None:
+            if context=='month':
+                timespan = weeutil.weeutil.archiveMonthSpan(self.almanac.time_ts)
+            elif context=='week':
+                timespan = weeutil.weeutil.archiveWeekSpan(self.almanac.time_ts)
+            else:
+                timespan = weeutil.weeutil.archiveYearSpan(self.almanac.time_ts)
+        t0 = timestamp_to_skyfield_time(timespan[0])
+        t1 = timestamp_to_skyfield_time(timespan[1])
+        # get risings and settings during the timespan
+        tri, yri = almanac.find_risings(observer, body, t0, t1)
+        tse, yse = almanac.find_settings(observer, body, t0, t1)
+        # if a database manager is available look up temperature and pressure
+        # and adjust for refraction
+        if archive:
+            body_radius_degrees = 16/60
+            hori_rise = _database_refraction(archive,tri,-body_radius_degrees)+body_radius_degrees
+            hori_set = _database_refraction(archive,tse,-body_radius_degrees)+body_radius_degrees
+            tri, yri = _adjust_to_refraction(observer, body, tri, yri, horizon_degrees=-hori_rise)
+            tse, yse = _adjust_to_refraction(observer, body, tse, yse, horizon_degrees=-hori_set)
+        # convert to `unix_epoch` timestamps
+        tri = skyfield_time_to_timestamp(tri)
+        tse = skyfield_time_to_timestamp(tse)
+        # If the list starts with a timestamp of setting, remove it
+        if len(tri)>0 and len(tse)>0 and tse[0]<tri[0]: 
+            tse.pop(0)
+            yse.pop(0)
+        # Return timespans as WeeWX type `TimeSpan`
+        for rising, yrising, setting, ysetting in zip(tri,yri,tse,yse):
+            if yrising and ysetting:
+                yield weeutil.weeutil.TimeSpan(rising,setting)
 
 
 class SkyfieldFormatter(weewx.units.Formatter):
