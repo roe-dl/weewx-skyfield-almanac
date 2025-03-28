@@ -417,7 +417,7 @@ display a table of the planets and their data you could do it that way:
     #for $planet in $almanac.planets
     #set $binder = $getattr($almanac,$planet)
     <tr>
-    <td>$pgettext('Astronomical',$planet)</td>
+    <td>$binder.name</td>
     <td style="text-align:right">$binder.altitude</td>
     <td>$binder.azimuth $binder.azimuth.ordinal_compass</td>
     #set $ra_vh = $ValueHelper(ValueTuple($binder.topo_ra.raw/15.0 if $binder.topo_ra.raw is not None else None,None,None),'day',formatter=$station.formatter)
@@ -437,8 +437,41 @@ display a table of the planets and their data you could do it that way:
 ```
 
 If you want to have the names of the planets in your local language, put
-them in the language file of your skin in section `[[Astronomcial]]` 
-with lines the way `english_name_as_shown_in_table = local_name`
+them in the language file of your skin in section `[[Almanac]]` 
+as a list of names to the key `planet_names`.
+
+### `genVisibleTimespans()`
+
+`genVisibleTimespans()` is a generator function that returns a series
+of timespans, each of them representing one period of visibility of the
+heavenly body. You can use it in `#for` loops.
+
+The method takes three optional parameters:
+* `context`: If you provide the name of a timespan like `week`, `month`,
+   or `year` the visibility periods are calculated for the respective
+   timespan `almanac_time` is in.
+* `timespan`: You can provide a timespan directly. `almanac_time` is
+  ignored in this case.
+* `archive`: A database manager to get temperature and pressure from
+  for adjusting rising and stetting time according to refraction.
+  You can set this parameter to `$day.db_lookup('wx_binding')`
+  to use the actual measurements.
+
+If you wonder why you could not use a loop over the days as the tags
+`$week.days`, `$month.days`, and `$year.days` provide and then
+calculate rising and setting time, here is the answer: You can do so
+with PyEphem, but unfortunately this approach is 125 times slower
+with Skyfield. Therefore a specialized method is required.
+
+Also, this method also works for the Moon and the planets, which do
+not always rise and set once a day.
+
+If you look for tags to calculate aggregations over the light day
+using this function, see the
+[weewx-GTS](https://github.com/roe-dl/weewx-GTS) extension, which
+provides `$daylight`, `$LMTweek.daylights`, `$LMTmonth.daylights`, and
+`$LMTyear.daylights`, which you can use like `$week.days`, `$month.days`,
+and `$year.days` but for the light day instead of the whole day.
 
 ### Earth satellites
 

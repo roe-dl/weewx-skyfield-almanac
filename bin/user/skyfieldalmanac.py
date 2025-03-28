@@ -101,11 +101,12 @@ from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star, Angle
 from skyfield.earthlib import refraction
 from skyfield.searchlib import find_discrete, find_maxima, find_minima
 from skyfield.data import iers
-from skyfield.constants import DAY_S, DEG2RAD, RAD2DEG
+from skyfield.constants import DAY_S, DEG2RAD, RAD2DEG, pi, tau
 from skyfield.iokit import parse_tle_file
 from skyfield.magnitudelib import planetary_magnitude
 from skyfield.named_stars import named_star_dict
 from skyfield.framelib import ecliptic_frame
+from skyfield.nutationlib import iau2000b_radians
 
 try:
     import pandas
@@ -419,9 +420,115 @@ def _database_refraction(archive, ti, alt_degrees):
     pressure = numpy.array(pressure)
     return refraction(alt_degrees,temperature,pressure)
 
-def _adjust_to_refraction(observer, body, t, y, horizon_degrees=None):
-    """ adjust to refraction """
-    return t, y
+def _fastify(t):
+    """ Copyright Brandon Rhodes """
+    t._nutation_angles_radians = iau2000b_radians(t)
+
+def _setting_hour_angle(latitude, declination, altitude_radians):
+    """Return the hour angle, in radians, when a body reaches the horizon.
+       Copyright Brandon Rhodes
+    """
+    lat = latitude.radians
+    dec = declination.radians
+    numerator = numpy.sin(altitude_radians) - numpy.sin(lat) * numpy.sin(dec)
+    denominator = numpy.cos(lat) * numpy.cos(dec)
+    ha = numpy.arccos(numpy.clip(numerator / denominator, -1.0, 1.0))
+    return ha
+
+def _rising_hour_angle(latitude, declination, altitude_radians):
+    """Return the hour angle, in radians, when a body reaches the horizon.
+       Copyright Brandon Rhodes
+    """
+    return - _setting_hour_angle(latitude, declination, altitude_radians)
+
+def _transit_ha(latitude, declination, altitude_radians):
+    """Copyright Brandon Rhodes """
+    return 0.0
+
+def _q(a, b, c, sign):
+    """Copyright Brandon Rhodes """
+    discriminant = numpy.maximum(b*b - 4*a*c, 0.0)  # avoid tiny negative results
+    return - 2*c / (b + sign * numpy.sqrt(discriminant))
+
+def _intersection(y0, y1, v0, v1):
+    """ Copyright Brandon Rhodes """
+    # Return x at which a curve reaches y=0, given its position and
+    # velocity y0,v0 at x=0 and y1,v1 at x=1.  For details, see
+    # `design/intersect_function.py` in the Skyfield repository.
+    sign = 1 - 2 * (y0 > y1)
+    return _q(y1 - y0 - v0, v0, y0, sign)
+
+_MICROSECOND = 1 / 24.0 / 3600.0 / 1e6
+_clip_lower = -1.0
+_clip_upper = +2.0
+
+def _adjust_to_refraction(observer, body, t, y, horizon_degrees, func):
+    """ adjust to refraction 
+        Copyright Brandon Rhodes
+        
+        This is copied because we already have an array of times and a
+        corresponding array of horizons which is not supported by the
+        original function.
+    """
+    horizon_radians = horizon_degrees / 360.0 * tau
+    geo = observer.vector_functions[-1]  # should we check observer.center?
+    latitude = geo.latitude
+    _fastify(t)
+    ha, dec, distance = observer.at(t).observe(body).apparent().hadec()
+    old_ha_radians = ha.radians
+    old_t = t
+    def normalize_zero_to_tau(radians):
+        return radians % tau
+    def normalize_plus_or_minus_pi(radians):
+        return (radians + pi) % tau - pi
+    normalize = normalize_zero_to_tau
+    if func is _setting_hour_angle:
+        t += 0.000694444444444
+    else:
+        t -= 0.000694444444444
+    for i in 0, 1, 2:
+        _fastify(t)
+        apparent = observer.at(t).observe(body).apparent()
+        ha, dec, distance = apparent.hadec()
+        desired_ha = func(latitude, dec, horizon_radians)
+        ha_adjustment = desired_ha - ha.radians
+        ha_adjustment = (ha_adjustment + pi) % tau - pi
+        if i < 2:
+            ha_diff = normalize(ha.radians - old_ha_radians)
+            t_diff = t - old_t
+            ha_per_day = ha_diff / t_diff
+        old_ha_radians = ha.radians
+        old_t = t
+        timebump = ha_adjustment / ha_per_day
+        timebump[timebump == 0.0] = _MICROSECOND   # avoid divide-by-zero
+        previous_t = t
+        t = ts.tt_jd(t.whole, t.tt_fraction + timebump)
+        normalize = normalize_plus_or_minus_pi
+    if func is _transit_ha:
+        return t
+    v = observer.vector_functions[-1]
+    altitude0, _, distance0, rate0, _, _ = (
+        apparent.frame_latlon_and_rates(v))
+    t.M = previous_t.M
+    t._nutation_angles_radians = previous_t._nutation_angles_radians
+    apparent = observer.at(t).observe(body).apparent()
+    altitude1, _, distance1, rate1, _, _ = (
+        apparent.frame_latlon_and_rates(v))
+    tdiff = t - previous_t
+    t_scaled_offset = _intersection(
+        altitude0.radians - horizon_radians,
+        altitude1.radians - horizon_radians,
+        rate0.radians.per_day * tdiff,
+        rate1.radians.per_day * tdiff,
+    )
+    t_scaled_offset = numpy.clip(t_scaled_offset, _clip_lower, _clip_upper)
+    w, f = numpy.divmod(t_scaled_offset * tdiff, 1.0)
+    t = previous_t.ts.tt_jd(previous_t.whole + w, previous_t.tt_fraction + f)
+    is_above_horizon =  (
+        (desired_ha % pi != 0.0)
+        | ((t_scaled_offset > _clip_lower) & (t_scaled_offset < _clip_upper))
+    )
+    return t, is_above_horizon
 
 
 class SkyfieldAlmanacType(AlmanacType):
@@ -1150,7 +1257,7 @@ class SkyfieldAlmanacBinder:
                                            formatter=self.almanac.formatter,
                                            converter=self.almanac.converter)
 
-    def genVisibleTimeSpans(self, context=None, timespan=None, archive=None):
+    def genVisibleTimespans(self, context=None, timespan=None, archive=None):
         """ generator function returning uptimes of body
         
             Args:
@@ -1188,8 +1295,8 @@ class SkyfieldAlmanacBinder:
                 body_radius_degrees = 16/60
             hori_rise = _database_refraction(archive,tri,-body_radius_degrees)+body_radius_degrees-self.almanac.horizon
             hori_set = _database_refraction(archive,tse,-body_radius_degrees)+body_radius_degrees-self.almanac.horizon
-            tri, yri = _adjust_to_refraction(observer, body, tri, yri, horizon_degrees=-hori_rise)
-            tse, yse = _adjust_to_refraction(observer, body, tse, yse, horizon_degrees=-hori_set)
+            tri, yri = _adjust_to_refraction(observer, body, tri, yri, -hori_rise, _rising_hour_angle)
+            tse, yse = _adjust_to_refraction(observer, body, tse, yse, -hori_set, _setting_hour_angle)
         # convert to `unix_epoch` timestamps
         tri = skyfield_time_to_timestamp(tri)
         tse = skyfield_time_to_timestamp(tse)
