@@ -13,6 +13,7 @@ Almanac extension to WeeWX using Skyfield module
   * [Date and time](#date-and-time)
   * [Calendar events](#calendar-events)
   * [Heavenly bodies](#heavenly-bodies)
+  * [`genVisibleTimespans()`](#_genVisibleTimespans___)
   * [Earth satellites](#earth-satellites)
   * [Maps](#maps)
   * [Coordinate systems](#coordinate-systems)
@@ -354,7 +355,7 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `hip_number` | in case of stars the Hipparcos catalog number
 &mdash; | `venus_fullness` | percentage of Venus that is illuminated
 &mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
-&mdash; | `constellation` | name of the constellation the actual position of the body is in
+&mdash; | `constellation` | name of the constellation the actual position of the body is in; in local language if available, otherwise in latin
 &mdash; | `constellation_abbr` | abbrevation of the constellation the actual position of the body is in
 
 And these attributes are supported by both core WeeWX using PyEphem and
@@ -453,7 +454,7 @@ The method takes three optional parameters:
 * `timespan`: You can provide a timespan directly. `almanac_time` is
   ignored in this case.
 * `archive`: A database manager to get temperature and pressure from
-  for adjusting rising and stetting time according to refraction.
+  for adjusting rising and setting time according to refraction.
   You can set this parameter to `$day.db_lookup('wx_binding')`
   to use the actual measurements.
 

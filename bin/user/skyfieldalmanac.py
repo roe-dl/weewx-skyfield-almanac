@@ -996,6 +996,8 @@ class SkyfieldAlmanacBinder:
                 if constellation_at:
                     abbr = constellation_at(astrometric)
                     if attr=='constellation_abbr': return abbr
+                    if abbr in self.almanac.__dict__.get('texts',dict()).get('Constellations',dict()):
+                        return self.almanac.__dict__['texts']['Constellations'][abbr]
                     if abbr and constellation_names:
                         return constellation_names[abbr]
                 return 'N/A'
