@@ -71,7 +71,7 @@
     
 """
 
-VERSION = "0.1"
+VERSION = "0.2"
 
 # IERS timescale file as hardcoded in Skyfield
 TIMESCALE_FILE = 'finals2000A.all'
@@ -1719,7 +1719,11 @@ class SkyfieldService(StdService):
         super(SkyfieldService,self).__init__(engine, config_dict)
         # directory to save ephemeris and IERS files
         sqlite_root = config_dict.get('DatabaseTypes',configobj.ConfigObj()).get('SQLite',configobj.ConfigObj()).get('SQLITE_ROOT','.')
-        path = os.path.join(sqlite_root,'skyfield')
+        path = os.path.join(
+            config_dict.get('WEEWX_ROOT','.'),
+            sqlite_root,
+            'skyfield'
+        )
         if not os.path.isdir(path): os.mkdir(path)
         self.path = path
         # configuration
