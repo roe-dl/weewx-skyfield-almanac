@@ -352,6 +352,7 @@ WeeWX datatype | Pure float result | Meaning
 `ha_distance`  | `ha_dist`         | distance in referenc to the coordinate system of the hour angle
 `day_max_altitude` | `day_max_alt` | maximum altitude of the day
 `day_max_alt_time` | &mdash;       | timestamp of the maximum altitude of the day
+`moon_tilt` | &mdash; | crescent moon tilt angle (0 = ☽ illuminated side to the right on northern hemisphere, π = ☾ illuminated side to the left on northern hemisphere <img src="moontilt.png" width="200px" alt="definition of moon tilt angle" />
 &mdash; | `hip_number` | in case of stars the Hipparcos catalog number
 &mdash; | `venus_fullness` | percentage of Venus that is illuminated
 &mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
@@ -816,3 +817,5 @@ A: There is nothing to do. Installing this extension is enough. But you
 * [ESA's Hipparcos mission and catalog](https://www.cosmos.esa.int/web/hipparcos/home)
 * [The brightest stars in the Hipparcos catalogue](https://www.cosmos.esa.int/web/hipparcos/brightest)
 * [CelesTrak](https://celestrak.org)
+* [Andrea K. Myers-Beaghton et al.: The moon tilt illusion](https://www.seas.upenn.edu/~amyers/MoonPaperOnline.pdf)
+* [Karlheinz Schott (&dagger;): "Falsche" Mondneigung - Wohin zeigt die Mondsichel?](https://falsche-mondneigung.jimdofree.com/b-geometrische-darstellung-und-berechnung/) (german)

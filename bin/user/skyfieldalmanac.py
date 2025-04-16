@@ -394,6 +394,33 @@ def planet_phase(planet, t):
     # to where the Earth will be
     return phase_angle, dir, idx
 
+def moon_tilt(moon_alt_radians, sun_alt_radians, az_radians):
+    """ Calculate crescent moon tilt
+    
+        formula according to Karlheinz Schott 2007
+        https://falsche-mondneigung.jimdofree.com/b-geometrische-darstellung-und-berechnung/
+        and Andrea K. Myers-Beaghton et al. 30.06.2014
+        https://www.seas.upenn.edu/~amyers/MoonPaperOnline.pdf
+        
+        Note that there is a singularity in this formula at new and full moon.
+    
+        Args:
+            moon_alt_radians(float): current moon altitude
+            sun_alt_radians(float): current sun altitude
+            az_radians(float): azimuth difference moon - sun 
+        
+        Returns:
+            float: crescent moon tilt in radians, 0 is ☽, π is ☾
+    """
+    try:
+        if az_radians<-numpy.pi: az_radians += numpy.pi*2.0
+        if az_radians>numpy.pi: az_radians -= numpy.pi*2.0
+        a = numpy.arctan((numpy.tan(sun_alt_radians)*numpy.cos(moon_alt_radians)-numpy.cos(az_radians)*numpy.sin(moon_alt_radians))/numpy.sin(az_radians))
+        if az_radians>=0.0: a += numpy.pi
+        return a
+    except ArithmeticError:
+        return 0.5*numpy.pi*(1 if az_radians>0 else -1)
+
 def _database_refraction(archive, ti, alt_degrees):
     """ lookup temperature and pressure for the timestamps ti """
     temperature = []
@@ -1083,6 +1110,18 @@ class SkyfieldAlmanacBinder:
             if attr==('%s_fullness' % self.heavenly_body.lower()):
                 # `moon_fullness`, `venus_fullness`, `mercury_fullness`
                 return position.fraction_illuminated(ephemerides[SUN])*100.0
+            if attr=='moon_tilt':
+                # tilt of the moon crescent
+                # 0 = illuminated side to the right on northern hemisphere
+                # π = illuminated side to the left on northern hemisphere
+                alt_moon, az_moon, _ = position.altaz()
+                alt_sun, az_sun, _ = observer.at(ti).observe(ephemerides[SUN]).apparent().altaz()
+                a = moon_tilt(alt_moon.radians,alt_sun.radians,az_moon.radians-az_sun.radians)
+                vt = ValueTuple(a,'radian','group_angle')
+                return ValueHelper(vt,
+                                               context="ephem_day",
+                                               formatter=self.almanac.formatter,
+                                               converter=self.almanac.converter)
             if attr in {'az','alt','alt_dist','azimuth','altitude','alt_distance'}:
                 alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)
                 if attr=='az':
