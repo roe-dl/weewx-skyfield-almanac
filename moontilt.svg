@@ -1,0 +1,18 @@
+<svg width="250" height="200" viewBox="-100 -100 250 200" xmlns="http://www.w3.org/2000/svg">
+<desc>the Moon, phase 58.7°</desc>
+<!-- Created using WeeWX and weewx-skymap-almanac extension -->
+<rect x="-100" y="-100" width="250" height="200" fill="#fff" stroke="none" />
+<g>
+<circle cx="0.0000" cy="0.0000" r="100" fill="#F8F8F8" stroke="none"></circle>
+<path fill="#ffecd5" stroke="none" d="M-50,-86.602A100.0000,100.0000 0 0 1 50,86.602A34.7778,100.0000 -30 0 0 -50,-86.602"></path>
+</g>
+<g stroke-width="1" stroke="#000">
+<line x1="-50" y1="-86.602" x2="50" y2="86.602" stroke-dasharray="3 6" />
+<line x1="0" y1="0" x2="129.904" y2="-75" stroke-dasharray="3 6" />
+<line x1="0" y1="0" x2="150" y2="0" />
+<path fill="none" d="M139.915,-4.886A140,140 0 0 0 123.613,-65.726" />
+</g>
+<!-- arrow l3-12h-6z -->
+<path fill="#000" stroke="none" d="M140,0l2.790,-12.051l-5.999,0.105zM121.244,-70l8.442,9.041l-5.248,2.909z" />
+<text x="110" y="-25" fill="#000" font-size="30">&#945;</text>
+</svg>
