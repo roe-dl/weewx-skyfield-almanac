@@ -4,7 +4,7 @@
 <rect x="-100" y="-100" width="250" height="200" fill="#fff" stroke="none" />
 <g>
 <circle cx="0.0000" cy="0.0000" r="100" fill="#F8F8F8" stroke="none"></circle>
-<path fill="#ffecd5" stroke="none" d="M-50,-86.602A100.0000,100.0000 0 0 1 50,86.602A34.7778,100.0000 -30 0 0 -50,-86.602"></path>
+<path fill="#ffecd5" stroke="none" d="M-50,-86.602A100.0000,100.0000 0 0 1 50,86.602A34.7778,100.0000 -30 0 0 -50,-86.602z"></path>
 </g>
 <g stroke-width="1" stroke="#000">
 <line x1="-50" y1="-86.602" x2="50" y2="86.602" stroke-dasharray="3 6" />

@@ -415,7 +415,7 @@ def moon_tilt(moon_alt_radians, sun_alt_radians, az_radians):
     try:
         if az_radians<-numpy.pi: az_radians += numpy.pi*2.0
         if az_radians>numpy.pi: az_radians -= numpy.pi*2.0
-        a = numpy.arctan((numpy.tan(sun_alt_radians)*numpy.cos(moon_alt_radians)-numpy.cos(az_radians)*numpy.sin(moon_alt_radians))/numpy.sin(az_radians))
+        a = numpy.arctan((numpy.cos(az_radians)*numpy.sin(moon_alt_radians)-numpy.tan(sun_alt_radians)*numpy.cos(moon_alt_radians))/numpy.sin(az_radians))
         if az_radians>=0.0: a += numpy.pi
         return a
     except ArithmeticError:
