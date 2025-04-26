@@ -13,7 +13,7 @@ Almanac extension to WeeWX using Skyfield module
   * [Date and time](#date-and-time)
   * [Calendar events](#calendar-events)
   * [Heavenly bodies](#heavenly-bodies)
-  * [`genVisibleTimespans()`](#_genVisibleTimespans___)
+  * [`genVisibleTimespans()`](#genVisibleTimespans)
   * [Earth satellites](#earth-satellites)
   * [Maps](#maps)
   * [Coordinate systems](#coordinate-systems)
