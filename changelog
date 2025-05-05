@@ -1,6 +1,6 @@
 0.1 07apr2025
 * initial version
-0.2
+0.2 05may2025
 * fix data directory
 * attribute `moon_tilt`
 * more localization
