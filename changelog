@@ -4,3 +4,5 @@
 * fix data directory
 * attribute `moon_tilt`
 * more localization
+0.3
+* added norwegian translation, thanks to user Aslak
