@@ -49,11 +49,6 @@ PyEphem calculated values by Skyfield calculated values in existing skins.
 WeeWX from version 5.2 on ist required and 
 Skyfield from version 1.47 on is recommended.
 
-> [!TIP]
-> If you want to test this WeeWX almanac extension before WeeWX 5.2 is
-> released, you can take `almanac.py` out of the development branch
-> of WeeWX and copy it to your installation of WeeWX 5.0, 5.1, or 4.10.
-
 Install Skyfield and NumPy. If you want to load star data you additionally
 need the Pandas module, otherwise you can leave it out.
 
@@ -797,6 +792,13 @@ Q: How do I have to adapt my skin to use this extension?
 A: There is nothing to do. Installing this extension is enough. But you
    could add the additional attributes supported by this extension
    to your skin to display them there.
+
+
+Q: I installed a skin and it does not show the localized names of planets
+   and constellations.
+
+A: You will have to re-install this extension after you instelled the
+   skin. 
 
 ## Credits
 
