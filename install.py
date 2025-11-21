@@ -78,7 +78,11 @@ class SkyfieldInstaller(ExtensionInstaller):
     def _update_lang_file(self, engine, src_fn, dest_fn):
         """ Update language definition files """
         # get the original language file
-        config = configobj.ConfigObj(dest_fn,encoding='utf-8')
+        try:
+            config = configobj.ConfigObj(dest_fn,encoding='utf-8')
+        except configobj.ConfigObjError as e:
+            engine.printer.out('%s: %s %s' % (dest_fn,e.__class__.__name__,e))
+            return
         # get the Skyfield additions
         to_be_merged = configobj.ConfigObj(src_fn,encoding='utf-8')
         # merge the additions to the localization config

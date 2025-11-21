@@ -797,7 +797,7 @@ A: There is nothing to do. Installing this extension is enough. But you
 Q: I installed a skin and it does not show the localized names of planets
    and constellations.
 
-A: You will have to re-install this extension after you instelled the
+A: You will have to re-install this extension after you installed the
    skin. 
 
 ## Credits
