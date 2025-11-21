@@ -71,7 +71,7 @@
     
 """
 
-VERSION = "0.2"
+VERSION = "0.3"
 
 # IERS timescale file as hardcoded in Skyfield
 TIMESCALE_FILE = 'finals2000A.all'
@@ -97,7 +97,16 @@ import weewx.defaults
 import numpy
 from skyfield import VERSION as SKYFIELD_VERSION
 from skyfield import almanac
-from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star, Angle
+try:
+    from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star, Angle
+except ImportError:
+    N = E = +1.0
+    S = W = -1.0
+    from skyfield.iokit import Loader
+    from skyfield.toposlib import wgs84
+    from skyfield.sgp4lib import EarthSatellite
+    from skyfield.starlib import Star
+    from skyfield.units import Angle
 from skyfield.earthlib import refraction
 from skyfield.searchlib import find_discrete, find_maxima, find_minima
 from skyfield.data import iers

@@ -8,3 +8,4 @@
 * added norwegian translation, thanks to user Aslak
 * additional documentation
 * error handling in installer
+* handle if current working directory is not available

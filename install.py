@@ -13,7 +13,7 @@ def loader():
 class SkyfieldInstaller(ExtensionInstaller):
     def __init__(self):
         super(SkyfieldInstaller, self).__init__(
-            version="0.2",
+            version="0.3",
             name='Skyfield almanac',
             description='almanac extension using Skyfield mdule',
             author="Johanna Roedenbeck",
@@ -81,7 +81,7 @@ class SkyfieldInstaller(ExtensionInstaller):
         try:
             config = configobj.ConfigObj(dest_fn,encoding='utf-8')
         except configobj.ConfigObjError as e:
-            engine.printer.out('%s: %s %s' % (dest_fn,e.__class__.__name__,e))
+            engine.printer.out('cannot merge to %s: %s %s' % (dest_fn,e.__class__.__name__,e))
             return
         # get the Skyfield additions
         to_be_merged = configobj.ConfigObj(src_fn,encoding='utf-8')
