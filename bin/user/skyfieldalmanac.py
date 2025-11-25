@@ -1777,10 +1777,20 @@ class SkyfieldService(StdService):
         # configuration
         alm_conf_dict = _get_config(config_dict)
         if alm_conf_dict['enable']:
+            # Is that run by `weectl report run`? If so, the maintenance
+            # thread is stopped after initializing the ephemerides.
+            is_interactive = isinstance(engine,weewx.engine.DummyEngine)
+            if is_interactive: alm_conf_dict['update_interval'] = 0
             # thread to initialize Skyfield
             self.skyfield_thread = SkyfieldMaintenanceThread(
                                                       alm_conf_dict, self.path)
             self.skyfield_thread.start()
+            # in case of `weectl report run` wait for ephemerides to be
+            # populated
+            if is_interactive:
+                loginf('waiting for ephemerides to be loaded')
+                self.skyfield_thread.join()
+                loginf('loading ephemerides finished')
             # instantiate the Skyfield almanac
             self.skyfield_almanac = SkyfieldAlmanacType()
             # add to the list of almanacs
