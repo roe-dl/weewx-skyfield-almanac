@@ -99,7 +99,7 @@ from skyfield import VERSION as SKYFIELD_VERSION
 from skyfield import almanac
 try:
     from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star, Angle
-except ImportError:
+except (ImportError,PermissionError):
     N = E = +1.0
     S = W = -1.0
     from skyfield.iokit import Loader
