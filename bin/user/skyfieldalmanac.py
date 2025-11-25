@@ -1132,7 +1132,7 @@ class SkyfieldAlmanacBinder:
                                                formatter=self.almanac.formatter,
                                                converter=self.almanac.converter)
             if attr in {'az','alt','alt_dist','azimuth','altitude','alt_distance'}:
-                alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure)
+                alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure if self.almanac.pressure else 'standard')
                 if attr=='az':
                     return az.degrees
                 elif attr=='alt':
@@ -1779,7 +1779,8 @@ class SkyfieldService(StdService):
         if alm_conf_dict['enable']:
             # Is that run by `weectl report run`? If so, the maintenance
             # thread is stopped after initializing the ephemerides.
-            is_interactive = isinstance(engine,weewx.engine.DummyEngine)
+            is_interactive = SkyfieldService.is_interactive(engine)
+            isinstance(engine,weewx.engine.DummyEngine)
             if is_interactive: alm_conf_dict['update_interval'] = 0
             # thread to initialize Skyfield
             self.skyfield_thread = SkyfieldMaintenanceThread(
@@ -1812,6 +1813,12 @@ class SkyfieldService(StdService):
         if self.skyfield_thread.is_alive():
             self.skyfield_thread.shutDown()
         logdbg("%s stopped" % self.__class__.__name__)
+    
+    @staticmethod
+    def is_interactive(engine):
+        """ check whether this service is run by `weectl` or `weewxd`
+        """
+        return isinstance(engine,weewx.engine.DummyEngine)
 
 
 class LiveService(StdService):
@@ -1921,7 +1928,7 @@ class LiveService(StdService):
             # apparent position of the sun in respect to the observer's location
             position = observer.at(ti).observe(sun).apparent()
             # solar altitude and azimuth
-            alt, az, _ = position.altaz(temperature_C=self.last_archive_outTemp,pressure_mbar=self.last_archive_pressure)
+            alt, az, _ = position.altaz(temperature_C=self.last_archive_outTemp,pressure_mbar=self.last_archive_pressure if self.last_archive_pressure else 'standard')
             packet['solarAzimuth'] = weewx.units.convertStd(ValueTuple(az.degrees,'degree_compass','group_direction'),usUnits)[0]
             packet['solarAltitude'] = weewx.units.convertStd(ValueTuple(alt.radians,'radian','group_angle'),usUnits)[0]
             # solar time (hour angle)

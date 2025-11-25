@@ -9,3 +9,4 @@
 * additional documentation
 * error handling in installer
 * handle if current working directory is not available
+* fix error caused by missing pressure
