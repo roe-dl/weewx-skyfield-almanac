@@ -1780,7 +1780,6 @@ class SkyfieldService(StdService):
             # Is that run by `weectl report run`? If so, the maintenance
             # thread is stopped after initializing the ephemerides.
             is_interactive = SkyfieldService.is_interactive(engine)
-            isinstance(engine,weewx.engine.DummyEngine)
             if is_interactive: alm_conf_dict['update_interval'] = 0
             # thread to initialize Skyfield
             self.skyfield_thread = SkyfieldMaintenanceThread(
