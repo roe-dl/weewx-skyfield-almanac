@@ -800,6 +800,16 @@ Q: I installed a skin and it does not show the localized names of planets
 A: You will have to re-install this extension after you installed the
    skin. 
 
+
+Q: What can I do if I don't want the skins' language files augmented with
+   astronomic terms from this extension?
+
+A: Unfortunately there is no direct way to do so, but there is a workaround. 
+   You can unpack the downloaded ZIP file, which will create a directory
+   `weewx-skyfield-almanac-master`. Within that directory you can remove 
+   the `lang` directory, and then install the extension from 
+   the `weewx-skyfield-almanac-master` directory.
+
 ## Credits
 
 * [Tom Keffer et al. (WeeWX)](https://github.com/weewx/weewx)
