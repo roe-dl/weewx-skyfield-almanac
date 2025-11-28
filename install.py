@@ -46,7 +46,9 @@ class SkyfieldInstaller(ExtensionInstaller):
         user_dir = engine.root_dict.get('USER_DIR')
         extension_dir = os.path.dirname(__file__)
         extension_lang_dir = os.path.join(extension_dir,'lang')
-        if skin_dir and user_dir and 'StdReport' in engine.config_dict:
+        if not os.path.isdir(extension_lang_dir):
+            engine.printer.out('directory %s not present. Skip injecting translations' % extension_lang_dir)
+        elif skin_dir and user_dir and 'StdReport' in engine.config_dict:
             # if present update the files if possible
             for skin in engine.config_dict['StdReport'].sections:
                 # relative path to the skin

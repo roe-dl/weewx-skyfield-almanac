@@ -11,3 +11,4 @@
 * handle if current working directory is not available
 * fix error caused by missing pressure
 * `moon_phases` key commented out in language files due to Michael K.
+* check for the existence of the extension's `lang` directory
