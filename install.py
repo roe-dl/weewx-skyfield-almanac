@@ -5,7 +5,7 @@
 import os.path
 import configobj
 from weecfg.extension import ExtensionInstaller
-from weeutil.config import merge_config
+from weeutil.config import conditional_merge
 
 def loader():
     return SkyfieldInstaller()
@@ -90,10 +90,10 @@ class SkyfieldInstaller(ExtensionInstaller):
         # merge the additions to the localization config
         if 'Almanac' in config:
             engine.printer.out('merging %s to %s' % (os.path.basename(src_fn),dest_fn))
-            merge_config(config['Almanac'],to_be_merged['Almanac'])
+            conditional_merge(config['Almanac'],to_be_merged['Almanac'])
             if ('Astronomical' in config.get('Texts',dict()) and 
                 'Astronomical' in to_be_merged.get('Texts',dict())):
-                merge_config(config['Texts']['Astronomical'],to_be_merged['Texts']['Astronomical'])
+                conditional_merge(config['Texts']['Astronomical'],to_be_merged['Texts']['Astronomical'])
             # save
             if engine.dry_run:
                 engine.printer.out(config)
