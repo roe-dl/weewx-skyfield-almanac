@@ -16,3 +16,4 @@
 * replace `merge_config` by `conditional_merge` to preserve existing keys
 * new option `disable_pyephem` to disable the default almanac
 * handle unknown Earth satellites
+* option `--download-ephemeris` to download ephemerides during installation

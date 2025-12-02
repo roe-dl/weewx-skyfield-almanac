@@ -38,6 +38,16 @@ class SkyfieldInstaller(ExtensionInstaller):
             },
             files=[('bin/user', ['bin/user/skyfieldalmanac.py'])]
         )
+        self.is_download_ephemeris = False
+    
+    def process_args(self, args):
+        """ process args passed to the installer 
+        
+            Note: Recognized from WeeWX 5.3 on
+        """
+        for arg in args:
+            if arg=='--download-ephemeris':
+                self.is_download_ephemeris = True
 
     def configure(self, engine):
         """ special configuration """
@@ -74,6 +84,19 @@ class SkyfieldInstaller(ExtensionInstaller):
                             # check if the target file exists and update it
                             if os.path.isfile(dest_fn):
                                 self._update_lang_file(engine, src_fn, dest_fn)
+        # Download Ephemerides
+        if self.is_download_ephemeris:
+            data_dir = engine.config_dict.get('DatabaseTypes',
+                                dict()).get('SQLite',dict()).get('SQLITE_ROOT')
+            if data_dir:
+                data_dir = os.path.join(
+                    engine.root_dict.get('WEEWX_ROOT','.'),
+                    data_dir,
+                    'skyfield'
+                )
+                self.download_ephemerides(engine, data_dir)
+            else:
+                engine.printer.out('could not determine database directory')
         # return whether changes to the configuration file were done
         return False
 
@@ -100,3 +123,23 @@ class SkyfieldInstaller(ExtensionInstaller):
                 engine.printer.out('-'*72)
             else:
                 config.write()
+    
+    def download_ephemerides(self, engine, data_dir):
+        """ download ephemerides according to configuration
+        
+            Note: This is only required if your WeeWX installation does
+                  not have permanent Internet access.
+        """
+        try:
+            from skyfield.iokit import Loader
+        except ImportError:
+            engine.printer.out('cannot download ephemerides: Skyfield module not available')
+            return
+        alm_dict = engine.config_dict['Almanac']['Skyfield']
+        engine.printer.out('download ephemerides to %s' % data_dir)
+        load = Loader(data_dir)
+        eph_files = alm_dict.get('ephemeris','de440s.bsp')
+        if not isinstance(eph_files,list): eph_files = [eph_files]
+        for eph_file in eph_files:
+            eph = load(eph_file)
+            engine.printer.out(eph)

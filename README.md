@@ -97,6 +97,11 @@ pip install skyfield
 > [!CAUTION]
 > You must not use `sudo` if you installed WeeWX by `pip`.
 
+   In case your WeeWX installation will not have permanent Internet access
+   you can append `--download-ephemeris` to the command line to download
+   ephemerides during installation of the extension. This is possible from
+   WeeWX 5.3 on. Please be patient when downloading ephemerides.
+
 3) restart weewx
 
    for SysVinit systems:
