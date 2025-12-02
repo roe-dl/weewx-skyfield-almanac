@@ -19,6 +19,7 @@ Almanac extension to WeeWX using Skyfield module
   * [Coordinate systems](#coordinate-systems)
   * [Units](#units)
   * [Localization](#localization)
+  * [How to check whether this extension is available?](#how-to-check-whether-this-extension-is-available)
 * [PyEphem and Skyfield](#pyephem-and-skyfield)
 * [Live data](#live-data)
 * [Base data for calculation](#base-data-for-calculation)
@@ -136,6 +137,8 @@ available if you have special requirements.
         update_interval = 31557600
         # enable LOOP packet augmentation
         enable_live_data = true
+        # disable the built-in PyEphem almanac (optional)
+        disable_pyephem = false
         [[[EarthSatellites]]]
             file_name1 = url1
             file_name2 = url2
@@ -166,6 +169,11 @@ available if you have special requirements.
   (set to 0 to switch off updates)
 * `enable_live_data`: enable live data for fast changing almanac values
   (default: on)
+* `disable_pyephem`: disable the built-in PyEphem almanac 
+  (optional, default: false).
+  Sometimes enabling both the Skyfield and PyEphem almanac produces 
+  special errors if the attribute or heavenly body is not available.
+  In those cases setting this option may help.
 * `[[[EarthSatellites]]]`: This section contains earth satellite data files
   to load. Each entry in the section contains of a file name and an URL
   The file name is used when saved to disk. You can find such files
@@ -616,6 +624,32 @@ Please note, that there is no difference in the names of the phases of
 Moon, Venus, and Mercury in English, but in other languages.
 
 You can also use those keys as parameters to the `$almanac` tag.
+
+### How to check whether this extension is available?
+
+If you write a skin, you may want to know whether the user installed and
+enabled this extension or not. You can do so this way:
+
+```
+#import weewx.almanac
+## get a list of the names of the installed almanac extensions
+#set $almanac_names = [$alm.__class__.__name__ for $alm in $weewx.almanac.almanacs]
+## check if the Skyfield almanac extension is available
+#set $skyfield_almanac_available = 'SkyfieldAlmanacType' in $almanac_names and $almanac.hasExtras
+```
+
+Then you include and exclude code by using `#if $skyfield_almanac_available`.
+
+If you simply want to know whether a certain extended attribute is
+available, you can do so by using `$varExists` like in this example:
+
+```
+#if $varExists("almanac.sun.max_altitude")
+... $almanac.sun.max_altitude.format("%.1f") ...
+#end if
+```
+
+Please note, that the `$varExists` method works with attributes of heavenly bodies only.
 
 ## PyEphem and Skyfield
 

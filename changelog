@@ -14,3 +14,5 @@
 * check for the existence of the extension's `lang` directory
 * added slovak translation, thanks to user Tomáš
 * replace `merge_config` by `conditional_merge` to preserve existing keys
+* new option `disable_pyephem` to disable the default almanac
+* handle unknown Earth satellites

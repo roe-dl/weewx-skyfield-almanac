@@ -87,7 +87,7 @@ from ftplib import FTP, FTP_TLS
 import json
 
 import weewx
-from weewx.almanac import AlmanacType, almanacs, timestamp_to_djd
+from weewx.almanac import AlmanacType, almanacs, timestamp_to_djd, PyEphemAlmanacType
 from weewx.engine import StdService
 from weewx.units import ValueTuple, ValueHelper, std_groups, Formatter
 import weeutil.weeutil
@@ -182,6 +182,7 @@ starids = dict()   # name to HIP number
 constellation_at = None # constellation function
 constellation_names = None # dictionary of abbrevations to names
 planets_list = []  # list of planets with available ephemeris
+satcatalogues = set()
 
 # Unit group and unit used for true solar time and local mean time
 for _, unitgroup in weewx.units.std_groups.items():
@@ -256,10 +257,13 @@ def _get_body(body):
     """ get the ephemeris of the body """
     # Note: sun_and_planets['jupiter barycenter'] and sun_and_planets['jupiter_barycenter'] both work.
     global ephemerides, stars
-    if body.startswith('HIP'):
-        x = weeutil.weeutil.to_int(body[3:])
-        return Star.from_dataframe(stars.loc[x])
-    return ephemerides[body]
+    try:
+        if body.startswith('HIP'):
+            x = weeutil.weeutil.to_int(body[3:])
+            return Star.from_dataframe(stars.loc[x])
+        return ephemerides[body]
+    except KeyError:
+        raise AttributeError("unknown heavenly body '%s'" % body)
 
 def _get_observer(almanac_obj, target, use_center, with_refraction=True):
     """ get observer object and refraction angle """
@@ -599,7 +603,7 @@ class SkyfieldAlmanacType(AlmanacType):
 
     def get_almanac_data(self, almanac_obj, attr):
         """ calculate attribute """
-        global ephemerides, planets_list
+        global ephemerides, planets_list, satcatalogues
         if ts is None or ephemerides is None:
             raise weewx.UnknownType(attr)
         if attr=='sunrise':
@@ -817,6 +821,10 @@ class SkyfieldAlmanacType(AlmanacType):
             # SkyfieldAlmanacBinder
             return SkyfieldAlmanacBinder(almanac_obj,
                                                     attr.lower()+'_barycenter')
+        elif '_' in attr and attr.lower().split('_')[0] in satcatalogues:
+            # The attribute points to an Earth satellite that is not included
+            # in `ephemerides`. Bind it to get the right exception.
+            return SkyfieldAlmanacBinder(almanac_obj, attr.lower())
         elif attr.startswith('HIP') and attr[3:].isdigit():
             # The attribute is a star. Bind the almanac and the star together
             # and return as a SkyfieldAlmanacBinder.
@@ -1604,7 +1612,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         
             Earth satellite ephemerides become out of date very fast.
         """
-        global ephemerides
+        global ephemerides, satcatalogues
         if ephemerides is None: return False
         # instantiate the loader
         load = Loader(self.path,verbose=False)
@@ -1613,6 +1621,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         now = time.time()-86400
         # load earth satellites
         sats = dict()
+        catalogues = []
         for file_name, url in self.earthsatellites.items():
             format = file_name.split('/')[-1].split('.')[-1].lower()
             if self.last_sat_update.get(file_name,0)<=now:
@@ -1641,12 +1650,14 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     else:
                         raise TypeError('unknown file format %s' % format)
                 catname = file_name.split('.')[0]
+                catalogues.append(catname)
                 x = {'%s_%s' % (catname,sat.model.satnum): sat for sat in x}
                 sats.update(x)
                 loginf("thread '%s': successfully processed satellites file '%s'" % (self.name,file_name))
             except (OSError,AttributeError,TypeError) as e:
                 logerr("thread '%s': error installing satellites file %s - %s" % (self.name,e.__class__.__name__,e))
                 rtn = False
+        satcatalogues = set(catalogues)
         ephemerides.update(sats)
         loginf("thread '%s': %d earth satellite%s installed/updated" % (self.name,len(sats),'' if len(sats)==1 else 's'))
         return rtn
@@ -1774,6 +1785,7 @@ class SkyfieldService(StdService):
         )
         if not os.path.isdir(path): os.mkdir(path)
         self.path = path
+        self.default_almanac = None
         # configuration
         alm_conf_dict = _get_config(config_dict)
         if alm_conf_dict['enable']:
@@ -1796,6 +1808,12 @@ class SkyfieldService(StdService):
             # add to the list of almanacs
             almanacs.insert(0,self.skyfield_almanac)
             logdbg("%s started" % self.__class__.__name__)
+            # remove the PyEphem almanac if configured so
+            if alm_conf_dict.get('disable_pyephem',False):
+                if isinstance(almanacs[-1],PyEphemAlmanacType):
+                    self.default_almanac = almanacs[-1]
+                    del almanacs[-1]
+                    loginf('Default almanac disabled')
         else:
             loginf("Skyfield almanac not enabled. Skipped.")
     
@@ -1804,6 +1822,9 @@ class SkyfieldService(StdService):
             maintenance thread
         """
         global almanacs
+        # if the PyEphem almanac was removed, re-add it here
+        if self.default_almanac:
+            almanacs.append(self.default_almanac)
         # find the Skyfield almanac in the list of almanacs
         idx = almanacs.index(self.skyfield_almanac)
         # remove it from the list
