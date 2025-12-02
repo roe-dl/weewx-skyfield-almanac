@@ -39,6 +39,7 @@ class SkyfieldInstaller(ExtensionInstaller):
             files=[('bin/user', ['bin/user/skyfieldalmanac.py'])]
         )
         self.is_download_ephemeris = False
+        self.is_skip_localization = False
     
     def process_args(self, args):
         """ process args passed to the installer 
@@ -48,6 +49,8 @@ class SkyfieldInstaller(ExtensionInstaller):
         for arg in args:
             if arg=='--download-ephemeris':
                 self.is_download_ephemeris = True
+            if arg=='--skip-localization':
+                self.is_skip_localization = True
 
     def configure(self, engine):
         """ special configuration """
@@ -56,7 +59,9 @@ class SkyfieldInstaller(ExtensionInstaller):
         user_dir = engine.root_dict.get('USER_DIR')
         extension_dir = os.path.dirname(__file__)
         extension_lang_dir = os.path.join(extension_dir,'lang')
-        if not os.path.isdir(extension_lang_dir):
+        if self.is_skip_localization:
+            engine.printer.out('Skip localization due to user request')
+        elif not os.path.isdir(extension_lang_dir):
             engine.printer.out('directory %s not present. Skip injecting translations' % extension_lang_dir)
         elif skin_dir and user_dir and 'StdReport' in engine.config_dict:
             # if present update the files if possible
