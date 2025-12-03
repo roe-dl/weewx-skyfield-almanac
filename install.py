@@ -2,10 +2,17 @@
 # Copyright 2025 Johanna Roedenbeck
 # Distributed under the terms of the GNU Public License (GPLv3)
 
+import os
 import os.path
+import stat
 import configobj
 from weecfg.extension import ExtensionInstaller
 from weeutil.config import conditional_merge
+
+def get_file_owner(fn):
+    uid = os.getuid()
+    statinfo = os.stat(fn)
+    return uid,statinfo.st_uid,statinfo.st_gid
 
 def loader():
     return SkyfieldInstaller()
@@ -59,6 +66,7 @@ class SkyfieldInstaller(ExtensionInstaller):
         user_dir = engine.root_dict.get('USER_DIR')
         extension_dir = os.path.dirname(__file__)
         extension_lang_dir = os.path.join(extension_dir,'lang')
+        uid, wuid, wgid = get_file_owner(skin_dir)
         if self.is_skip_localization:
             engine.printer.out('Skip localization due to user request')
         elif not os.path.isdir(extension_lang_dir):
@@ -99,7 +107,15 @@ class SkyfieldInstaller(ExtensionInstaller):
                     data_dir,
                     'skyfield'
                 )
+                if not os.path.isdir(data_dir): 
+                    os.mkdir(data_dir)
+                    if uid==0:
+                        os.chown(data_dir,wuid,wgid)
+                        os.chmod(data_dir,stat.S_IRWXU|stat.S_IRWXG|stat.S_IROTH|stat.S_IXOTH|stat.S_ISGID)
                 self.download_ephemerides(engine, data_dir)
+                if uid==0:
+                    for fn in os.listdir(data_dir):
+                        os.chown(os.path.join(data_dir,fn),wuid,wgid)
             else:
                 engine.printer.out('could not determine database directory')
         # return whether changes to the configuration file were done
@@ -143,6 +159,21 @@ class SkyfieldInstaller(ExtensionInstaller):
         alm_dict = engine.config_dict['Almanac']['Skyfield']
         engine.printer.out('download ephemerides to %s' % data_dir)
         load = Loader(data_dir)
+        # timescale
+        if not alm_dict.get('use_builtin_timescale',True):
+            ts_urls = alm_dict.get('timescale_url',None)
+            if ts_urls and not isinstance(ts_urls,list): ts_urls = [ts_urls]
+            if ts_urls:
+                for url in ts_urls:
+                    try:
+                        load.download(url,filename='finals2000A.all')
+                        ok = True
+                    except OSError:
+                        ok = False
+                    if ok: break
+            else:
+                load.timescale(builtin=False)
+        # ephemerides
         eph_files = alm_dict.get('ephemeris','de440s.bsp')
         if not isinstance(eph_files,list): eph_files = [eph_files]
         for eph_file in eph_files:
