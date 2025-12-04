@@ -4,7 +4,7 @@
 * fix data directory
 * attribute `moon_tilt`
 * more localization
-0.3
+0.3 04dec2025
 * added norwegian translation, thanks to user Aslak
 * additional documentation
 * error handling in installer
