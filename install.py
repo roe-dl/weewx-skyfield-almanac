@@ -8,6 +8,7 @@ import stat
 import configobj
 from weecfg.extension import ExtensionInstaller
 from weeutil.config import conditional_merge
+import weeutil.weeutil
 
 def get_file_owner(fn):
     uid = os.getuid()
@@ -160,11 +161,13 @@ class SkyfieldInstaller(ExtensionInstaller):
         engine.printer.out('download ephemerides to %s' % data_dir)
         load = Loader(data_dir)
         # timescale
-        if not alm_dict.get('use_builtin_timescale',True):
+        if not weeutil.weeutil.to_bool(
+                                   alm_dict.get('use_builtin_timescale',True)):
             ts_urls = alm_dict.get('timescale_url',None)
             if ts_urls and not isinstance(ts_urls,list): ts_urls = [ts_urls]
             if ts_urls:
                 for url in ts_urls:
+                    engine.printer.out(url)
                     try:
                         load.download(url,filename='finals2000A.all')
                         ok = True
