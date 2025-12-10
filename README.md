@@ -393,6 +393,7 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `size` | diameter in arcseconds
 `radius_size` | `radius` | radius in radians
 &mdash; | `moon_fullness` | percentage of the Moon surface that is illuminated
+&mdash; | `parallactic_angle` | parallactic angle
 
 Try
 

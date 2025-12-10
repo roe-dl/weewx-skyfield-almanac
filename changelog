@@ -17,3 +17,5 @@
 * handle unknown Earth satellites
 * `weectl` option `--download-ephemeris` to download ephemerides during installation
 * `weectl` option `--skip-localization` for user Michael K.
+0.4
+* `parallactic_angle`

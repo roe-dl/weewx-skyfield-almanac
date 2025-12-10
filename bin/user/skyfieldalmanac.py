@@ -71,7 +71,7 @@
     
 """
 
-VERSION = "0.3"
+VERSION = "0.4"
 
 # IERS timescale file as hardcoded in Skyfield
 TIMESCALE_FILE = 'finals2000A.all'
@@ -116,6 +116,8 @@ from skyfield.magnitudelib import planetary_magnitude
 from skyfield.named_stars import named_star_dict
 from skyfield.framelib import ecliptic_frame
 from skyfield.nutationlib import iau2000b_radians
+from skyfield.positionlib import position_of_radec
+from skyfield.trigonometry import position_angle_of
 
 try:
     import pandas
@@ -1124,6 +1126,22 @@ class SkyfieldAlmanacBinder:
                 position = (body-station).at(ti)
             else:
                 position = observer.at(ti).observe(body).apparent()
+            if attr=='parallactic_angle':
+                # https://github.com/skyfielders/python-skyfield/issues/819#issuecomment-2001972677
+                station = wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)
+                north_pole = position_of_radec(
+                    ra_hours=0.0, dec_degrees=90.0, epoch=ti,
+                    center=station, t=ti,
+                )
+                pa = position_angle_of(
+                    position.altaz(), 
+                    north_pole.altaz()
+                )
+                vt = ValueTuple(pa.radians,'radian','group_angle')
+                return ValueHelper(vt,
+                               context="ephem_day",
+                               formatter=self.almanac.formatter,
+                               converter=self.almanac.converter)
             if attr==('%s_fullness' % self.heavenly_body.lower()):
                 # `moon_fullness`, `venus_fullness`, `mercury_fullness`
                 return position.fraction_illuminated(ephemerides[SUN])*100.0
