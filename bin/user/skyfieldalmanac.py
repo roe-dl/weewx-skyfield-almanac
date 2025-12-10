@@ -1137,7 +1137,8 @@ class SkyfieldAlmanacBinder:
                     position.altaz(), 
                     north_pole.altaz()
                 )
-                vt = ValueTuple(pa.radians,'radian','group_angle')
+                pa = -pa.radians if pa.radians<pi else 2*pi-pa.radians
+                vt = ValueTuple(pa,'radian','group_angle')
                 return ValueHelper(vt,
                                context="ephem_day",
                                formatter=self.almanac.formatter,
