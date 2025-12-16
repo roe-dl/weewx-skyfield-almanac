@@ -123,6 +123,11 @@ pip install skyfield
 There is no need to configure anything, but there are some tuning options
 available if you have special requirements.
 
+> [!NOTE]
+> If you are new to this extension, please, do NOT change the configuration
+> at the beginning. The installation sets reasonable values to all 
+> configuration keys to immediately include the new tags into your skin.
+
 ```
 [Almanac]
     [[Skyfield]]
@@ -394,6 +399,12 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `size` | diameter in arcseconds
 `radius_size` | `radius` | radius in radians
 &mdash; | `moon_fullness` | percentage of the Moon surface that is illuminated
+
+Note that `name`, `ha` and `parallactic_angle` are available with PyEphem, 
+too, but undocumented. For that reason the result is not really the same.
+`ha` of PyEphem is in the range 0 to 360°, `ha` of Skyfield -180° to +180°.
+`parallactic_angle` of PyEphem is a PyEphem angle, `parallactic_angle` of
+Skyfield is a WeeWX data type.
 
 Try
 
