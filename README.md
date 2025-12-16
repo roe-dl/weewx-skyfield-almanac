@@ -126,7 +126,7 @@ available if you have special requirements.
 > [!NOTE]
 > If you are new to this extension, please, do NOT change the configuration
 > at the beginning. The installation sets reasonable values to all 
-> configuration keys to immediately include the new tags into your skin.
+> configuration keys to immediately use this extension.
 
 ```
 [Almanac]
