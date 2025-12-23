@@ -130,6 +130,12 @@ class SkyfieldInstaller(ExtensionInstaller):
         except configobj.ConfigObjError as e:
             engine.printer.out('cannot merge to %s: %s %s' % (dest_fn,e.__class__.__name__,e))
             return
+        # If there is '=' in a key but not ',' then the result will be invalid. So
+        # skip the file if you find such a key.
+        key = self._check_config(config)
+        if key:
+            engine.printer.out('cannot merge to %s: problematic key "%s"' % (dest_fn,key))
+            return
         # get the Skyfield additions
         to_be_merged = configobj.ConfigObj(src_fn,encoding='utf-8')
         # merge the additions to the localization config
@@ -145,6 +151,24 @@ class SkyfieldInstaller(ExtensionInstaller):
                 engine.printer.out('-'*72)
             else:
                 config.write()
+    
+    def _check_config(self, config):
+        """ Check for keys that would result in unvalid files after update 
+        
+            The configobj module removes quotation marks around keys if there 
+            is no comma within the key. If an equal sign and a "less than"
+            sign and not a comma is in the key this results in an unreadable 
+            configuration file.
+            
+            https://github.com/DiffSK/configobj/issues/273
+        """
+        for key in config.sections:
+            rtn = self._check_config(config[key])
+            if rtn: return rtn
+        for key in config.scalars:
+            if '=' in key and '<' in key and ',' not in key:
+                return key
+        return None
     
     def download_ephemerides(self, engine, data_dir):
         """ download ephemerides according to configuration
