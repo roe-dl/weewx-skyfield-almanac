@@ -20,3 +20,4 @@
 0.4
 * `parallactic_angle`
 * work around configobj bug that can create unreadable config files
+* units of distance used in astronomy

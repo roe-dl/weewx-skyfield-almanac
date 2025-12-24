@@ -612,6 +612,15 @@ is used for other angles with other origins within WeeWX, too. They only have
 in common that they are measured within the base plane of the respective 
 coordinate system.
 
+In Astronomy huge distances are measured. To express them astronomers use
+special units:
+
+Unit | Unit label | Name              | Unit group       | Definition                    | Example
+-----|------------|-------------------|------------------|-------------------------------|------------------------------------------
+`light_year` | ly | light-year        | `group_distance` | 1 ly = 9,460,730,472,580.8 km | `$almanac.HIP32349.topo_dist.light_year`
+`AU`         | AU | astronomical unit | `group_distance` | 1 AU = 149,597,870.7 km       | `$almanac.jupiter_barycenter.geo_dist.AU`
+`gigameter`  | Gm | million kilometer | `group_distance` | 1 Gm = 10<sup>6</sup> km      | `$almanac.sun.astro_dist.gigameter`
+
 ### Localization
 
 To adapt skins to local languages, WeeWX uses language files. These files

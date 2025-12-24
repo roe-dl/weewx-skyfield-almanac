@@ -188,7 +188,29 @@ satcatalogues = set()
 
 # Unit group and unit used for true solar time and local mean time
 for _, unitgroup in weewx.units.std_groups.items():
-    unitgroup['group_localtime'] = 'local_djd'
+    unitgroup.setdefault('group_localtime','local_djd')
+
+# Astronomical units
+weewx.units.conversionDict['meter']['light_year'] = lambda x:x/9460730472580800.0
+weewx.units.conversionDict['km']['light_year'] = lambda x:x/9460730472580.8
+weewx.units.conversionDict['mile']['light_year'] = lambda x:x/5878639984453.75122721
+weewx.units.conversionDict['meter']['AU'] = lambda x:x/149597870700.0
+weewx.units.conversionDict['km']['AU'] = lambda x:x/149597870.7
+weewx.units.conversionDict['mile']['AU'] = lambda x:x/92956038.31384294
+weewx.units.conversionDict['meter']['gigameter'] = lambda x:x/1000000000
+weewx.units.conversionDict['km']['gigameter'] = lambda x:x/1000000
+weewx.units.conversionDict['mile']['gigameter'] = lambda x:x*0.00000160934
+weewx.defaults.defaults['Units']['StringFormats'].setdefault('light_year',"%.0f")
+weewx.defaults.defaults['Units']['Labels'].setdefault('light_year',u" ly")
+weewx.defaults.defaults['Units']['StringFormats'].setdefault('AU',"%.0f")
+weewx.defaults.defaults['Units']['Labels'].setdefault('AU',u" AU")
+weewx.defaults.defaults['Units']['StringFormats'].setdefault('gigameter',"%.1f")
+weewx.defaults.defaults['Units']['Labels'].setdefault('gigameter',u" × 10<sup>6</sup> km")
+
+# Default values in [Almanac] section
+weewx.defaults.defaults['Almanac'].setdefault('planet_names',[i.capitalize() for i in PLANETS])
+weewx.defaults.defaults['Almanac'].setdefault('sun',SUN.capitalize())
+weewx.defaults.defaults['Almanac'].setdefault('moon',EARTHMOON.capitalize())
 
 # Logging
 import weeutil.logger
