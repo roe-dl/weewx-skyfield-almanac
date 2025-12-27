@@ -21,3 +21,4 @@
 * `parallactic_angle`
 * work around configobj bug that can create unreadable config files
 * units of distance used in astronomy
+* configurable LOOP packet augmentation

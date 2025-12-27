@@ -105,3 +105,6 @@ Observation type | Meaning
 `solarAzimuth` | current azimuth of the Sun
 `solarTime` | current hour angle of the Sun, counted from midnight (that is sundial time)
 `solarPath` | current percentage of the way of the Sun from sunrise to sunset
+
+You can configure additional heavenly bodies to be included in live data
+like the Moon or the planets.

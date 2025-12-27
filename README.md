@@ -147,6 +147,8 @@ available if you have special requirements.
         update_interval = 31557600
         # enable LOOP packet augmentation
         enable_live_data = true
+        # optional list of heavenly bodies
+        live_data_bodies = 
         # disable the built-in PyEphem almanac (optional)
         disable_pyephem = false
         [[[EarthSatellites]]]
@@ -179,6 +181,8 @@ available if you have special requirements.
   (set to 0 to switch off updates)
 * `enable_live_data`: enable live data for fast changing almanac values
   (default: on)
+* `live_data_bodies`: list of additional heavenly bodies to include in live 
+  data (e.g. LOOP packets). Optional. The Sun is always included.
 * `disable_pyephem`: disable the built-in PyEphem almanac 
   (optional, default: false).
   Sometimes enabling both the Skyfield and PyEphem almanac produces 
@@ -716,6 +720,12 @@ the module that uses the values.
 For mobile stations the location is updated from `latitude` and `longitude`
 observation types if they are present in the LOOP packet.
 
+If you set `live_data_bodies` to a list of heavenly bodies, then azimuth
+and altitude of those bodies are calculated, too. For example, if that
+list contains `moon`, the observation types `lunarAzimuth` and
+`lunarAltitude` are available. Or if the list contains `mars_barycenter`,
+then the observation types `marsAzimuth` and `marsAltitude` are available.
+
 ## Base data for calculation
 
 Astronomic calculations require two kinds of base data: time scales and
@@ -859,6 +869,12 @@ Q: I installed a skin and it does not show the localized names of planets
 
 A: You will have to re-install this extension after you installed the
    skin. 
+
+
+Q: I get the log message "ERROR user.skyfieldalmanac: live almanac error:
+   'mars'" What can I do?
+
+A: Try "mars_barycenter" instead of "mars".
 
 
 Q: What can I do if I don't want the skins' language files augmented with

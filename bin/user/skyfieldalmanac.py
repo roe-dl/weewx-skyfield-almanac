@@ -1901,6 +1901,23 @@ class LiveService(StdService):
             weeutil.weeutil.to_bool(alm_conf_dict.get('enable_live_data',True)))
         self.log_success = alm_conf_dict['log_success']
         self.log_failure = alm_conf_dict['log_failure']
+        # additional heavenly bodies
+        bodies = alm_conf_dict.get('live_data_bodies',[])
+        if not isinstance(bodies,list): bodies = [bodies]
+        self.additional_bodies = []
+        for body in bodies:
+            # The Sun is always included.
+            if body.lower()=='sun': continue
+            # Normalize prefix
+            prefix = body
+            if prefix==EARTHMOON:
+                prefix = 'lunar'
+            elif prefix.endswith('_barycenter'):
+                prefix = prefix[:-11]
+            # add body to the list
+            if body and prefix:
+                self.additional_bodies.append((body,prefix.lower()))
+        loginf('live data for: %s' % ([(SUN,'solar')]+self.additional_bodies))
         # station altitude
         try:
             self.altitude = weewx.units.convert(engine.stn_info.altitude_vt,'meter')[0]
@@ -1917,6 +1934,9 @@ class LiveService(StdService):
         weewx.units.obs_group_dict.setdefault('solarAzimuth','group_direction')
         weewx.units.obs_group_dict.setdefault('solarTime','group_direction')
         weewx.units.obs_group_dict.setdefault('solarPath','group_percent')
+        for _, prefix in self.additional_bodies:
+            weewx.units.obs_group_dict.setdefault('%sAltitude' % prefix,'group_angle')
+            weewx.units.obs_group_dict.setdefault('%sAzimuth' % prefix,'group_direction')
         # instance variables
         self.last_archive_outTemp = None # degree_C
         self.last_archive_pressure = None # mbar
@@ -1986,7 +2006,7 @@ class LiveService(StdService):
             ti = timestamp_to_skyfield_time(ts)
             # observer's location
             observer = ephemerides[EARTH] + self.station
-            # apparent position of the sun in respect to the observer's location
+            # apparent position of the Sun in respect to the observer's location
             position = observer.at(ti).observe(sun).apparent()
             # solar altitude and azimuth
             alt, az, _ = position.altaz(temperature_C=self.last_archive_outTemp,pressure_mbar=self.last_archive_pressure if self.last_archive_pressure else 'standard')
@@ -2040,6 +2060,15 @@ class LiveService(StdService):
             else:
                 sp = None
             packet['solarPath'] = weewx.units.convertStd(ValueTuple(sp,'percent','group_percent'),usUnits)[0]
+            # additional heavenly bodies according to configuration
+            for body, prefix in self.additional_bodies:
+                eph = ephemerides[body]
+                # apparent position of the Moon in respect to the observer's location
+                position = observer.at(ti).observe(eph).apparent()
+                # lunar altitude and azimuth
+                alt, az, _ = position.altaz(temperature_C=self.last_archive_outTemp,pressure_mbar=self.last_archive_pressure if self.last_archive_pressure else 'standard')
+                packet['%sAzimuth' % prefix] = weewx.units.convertStd(ValueTuple(az.degrees,'degree_compass','group_direction'),usUnits)[0]
+                packet['%sAltitude' % prefix] = weewx.units.convertStd(ValueTuple(alt.radians,'radian','group_angle'),usUnits)[0]
         except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError) as e:
             # report the error at most once every 5 minutes
             if self.log_failure and time.time()>=self.last_almanac_error+300:
