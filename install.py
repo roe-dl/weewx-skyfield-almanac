@@ -40,7 +40,9 @@ class SkyfieldInstaller(ExtensionInstaller):
                         ],
                         '#log_ftp':'false',
                         'update_interval':'31557600',
-                        'enable_live_data':'true'
+                        'enable_live_data':'true',
+                        'live_data_observations':['altitude','azimuth'],
+                        'live_data_bodies':['sun']
                     }
                 }
             },

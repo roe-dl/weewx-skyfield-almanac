@@ -20,7 +20,7 @@ that use the standard WeeWX way for internationalization.
 Please note that the installation does not overwrite any existing
 value in the skin's language files. Missing keys are added only.
 Language files, that have HTML code in keys (in keys, not values)
-cannot be augemented automatically.
+cannot be augmented automatically.
 
 ## How to add a localization for your local language?
 

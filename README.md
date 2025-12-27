@@ -147,6 +147,8 @@ available if you have special requirements.
         update_interval = 31557600
         # enable LOOP packet augmentation
         enable_live_data = true
+        # which observation types to calculate live data for
+        live_data_observations = altitude, azimuth
         # optional list of heavenly bodies
         live_data_bodies = 
         # disable the built-in PyEphem almanac (optional)
@@ -181,6 +183,9 @@ available if you have special requirements.
   (set to 0 to switch off updates)
 * `enable_live_data`: enable live data for fast changing almanac values
   (default: on)
+* `live_data_observations`: list of observation types to calculate live
+  data for. Optional. Default is altitude and azimuth. Possible additional
+  values are `declination` and `right ascension`.
 * `live_data_bodies`: list of additional heavenly bodies to include in live 
   data (e.g. LOOP packets). Optional. The Sun is always included.
 * `disable_pyephem`: disable the built-in PyEphem almanac 
@@ -702,13 +707,19 @@ include them in MQTT output. To activate live data, set the
   (that is sundial time)
 * `solarPath`: current percentage of the way of the Sun from sunrise
   to sunset
+* `solarDeclination`: current declination of the Sun (available if
+  the configuration option `live_data_observations` include
+  `declination` or `right ascension`)
+* `solarRightAscension`: current right ascension of the Sun (available if
+  the configuration option `live_data_observations` include
+  `declination` or `right ascension`)
 
 What is the difference between `solarAzimuth`, `solarAltitude` and
 `$almanac.sun.az` (`$almanac.sun.azimuth`), `$almanac.sun.alt`
 (`$almanac.sun.azimuth`), respectively?
 
-* `solarAzimuth` and `solarAltitude` are output to MQTT and thus allow 
-  live updates on web sites.
+* `solarAzimuth` and `solarAltitude` are included in LOOP packets and 
+  output to MQTT and thus allow live updates on web sites.
 * As `solarAzimuth` and `solarAltitude` are observation types, they can be 
   saved to the database and then displayed in diagrams.
 
@@ -720,11 +731,30 @@ the module that uses the values.
 For mobile stations the location is updated from `latitude` and `longitude`
 observation types if they are present in the LOOP packet.
 
-If you set `live_data_bodies` to a list of heavenly bodies, then azimuth
-and altitude of those bodies are calculated, too. For example, if that
-list contains `moon`, the observation types `lunarAzimuth` and
-`lunarAltitude` are available. Or if the list contains `mars_barycenter`,
-then the observation types `marsAzimuth` and `marsAltitude` are available.
+If you set `live_data_bodies` to a list of heavenly bodies, then their
+values are calculated, too. For example, if that
+list contains `moon`, the observation types `lunarAzimuth`, `lunarAltitude`,
+`lunarRightAscension`, and `lunarDeclination` are available. The same applies
+if the list contains `mars_barycenter`, this time with the prefix `mars`.
+
+If you want to save those values to the database, you have to add columns
+using the 
+[`weectl` utility](https://weewx.com/docs/latest/utilities/weectl-database/#add-a-new-observation-type-to-the-database).
+For example, if you want to include `solarAltitude` to the database use the 
+following command:
+
+in case of a WeeWX packet installation:
+
+```shell
+sudo weectl database add-column solarAltitude
+```
+
+in case of a WeeWX pip installation:
+
+```shell
+source ~/weewx-venv/bin/activate
+weectl database add-column solarAltitude
+```
 
 ## Base data for calculation
 

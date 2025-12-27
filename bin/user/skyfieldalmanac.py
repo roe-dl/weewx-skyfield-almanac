@@ -1901,6 +1901,11 @@ class LiveService(StdService):
             weeutil.weeutil.to_bool(alm_conf_dict.get('enable_live_data',True)))
         self.log_success = alm_conf_dict['log_success']
         self.log_failure = alm_conf_dict['log_failure']
+        # which observation types to provide
+        obs = alm_conf_dict.get('live_data_observations',[])
+        if not isinstance(obs,list): obs = [obs]
+        self.with_altaz = 'altitude' in obs or 'azimuth' in obs
+        self.with_radec = 'declination' in obs or 'right ascension' in obs
         # additional heavenly bodies
         bodies = alm_conf_dict.get('live_data_bodies',[])
         if not isinstance(bodies,list): bodies = [bodies]
@@ -1910,13 +1915,13 @@ class LiveService(StdService):
             if body.lower()=='sun': continue
             # Normalize prefix
             prefix = body
-            if prefix==EARTHMOON:
+            if prefix.lower()==EARTHMOON:
                 prefix = 'lunar'
             elif prefix.endswith('_barycenter'):
                 prefix = prefix[:-11]
             # add body to the list
             if body and prefix:
-                self.additional_bodies.append((body,prefix.lower()))
+                self.additional_bodies.append((body.lower(),prefix.lower()))
         loginf('live data for: %s' % ([(SUN,'solar')]+self.additional_bodies))
         # station altitude
         try:
@@ -1934,9 +1939,13 @@ class LiveService(StdService):
         weewx.units.obs_group_dict.setdefault('solarAzimuth','group_direction')
         weewx.units.obs_group_dict.setdefault('solarTime','group_direction')
         weewx.units.obs_group_dict.setdefault('solarPath','group_percent')
+        weewx.units.obs_group_dict.setdefault('solarRightAscension','group_direction')
+        weewx.units.obs_group_dict.setdefault('solarDeclination','group_angle')
         for _, prefix in self.additional_bodies:
             weewx.units.obs_group_dict.setdefault('%sAltitude' % prefix,'group_angle')
             weewx.units.obs_group_dict.setdefault('%sAzimuth' % prefix,'group_direction')
+            weewx.units.obs_group_dict.setdefault('%sRightAscension' % prefix,'group_direction')
+            weewx.units.obs_group_dict.setdefault('%sDeclination' % prefix,'group_angle')
         # instance variables
         self.last_archive_outTemp = None # degree_C
         self.last_archive_pressure = None # mbar
@@ -2060,15 +2069,26 @@ class LiveService(StdService):
             else:
                 sp = None
             packet['solarPath'] = weewx.units.convertStd(ValueTuple(sp,'percent','group_percent'),usUnits)[0]
+            # solar right ascension and declination
+            if self.with_radec:
+                ra, dec, _ = position.radec('date')
+                packet['solarRightAscension'] = weewx.units.convertStd(ValueTuple(ra._degrees,'degree_compass','group_direction'),usUnits)[0]
+                packet['solarDeclination'] = weewx.units.convertStd(ValueTuple(dec.radians,'radian','group_angle'),usUnits)[0]
             # additional heavenly bodies according to configuration
             for body, prefix in self.additional_bodies:
                 eph = ephemerides[body]
                 # apparent position of the Moon in respect to the observer's location
                 position = observer.at(ti).observe(eph).apparent()
-                # lunar altitude and azimuth
-                alt, az, _ = position.altaz(temperature_C=self.last_archive_outTemp,pressure_mbar=self.last_archive_pressure if self.last_archive_pressure else 'standard')
-                packet['%sAzimuth' % prefix] = weewx.units.convertStd(ValueTuple(az.degrees,'degree_compass','group_direction'),usUnits)[0]
-                packet['%sAltitude' % prefix] = weewx.units.convertStd(ValueTuple(alt.radians,'radian','group_angle'),usUnits)[0]
+                # the body's altitude and azimuth
+                if self.with_altaz:
+                    alt, az, _ = position.altaz(temperature_C=self.last_archive_outTemp,pressure_mbar=self.last_archive_pressure if self.last_archive_pressure else 'standard')
+                    packet['%sAzimuth' % prefix] = weewx.units.convertStd(ValueTuple(az.degrees,'degree_compass','group_direction'),usUnits)[0]
+                    packet['%sAltitude' % prefix] = weewx.units.convertStd(ValueTuple(alt.radians,'radian','group_angle'),usUnits)[0]
+                # the body's right ascension and declination
+                if self.with_radec:
+                    ra, dec, _ = position.radec('date')
+                    packet['%sRightAscension' % prefix] = weewx.units.convertStd(ValueTuple(ra._degrees,'degree_compass','group_direction'),usUnits)[0]
+                    packet['%sDeclination' % prefix] = weewx.units.convertStd(ValueTuple(dec.radians,'radian','group_angle'),usUnits)[0]
         except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError) as e:
             # report the error at most once every 5 minutes
             if self.log_failure and time.time()>=self.last_almanac_error+300:
