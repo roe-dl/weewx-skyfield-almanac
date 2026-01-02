@@ -22,3 +22,4 @@
 * work around configobj bug that can create unreadable config files
 * units of distance used in astronomy
 * configurable LOOP packet augmentation
+* fix bug that caused multiple results for `previous_*` and `next_*` in some circumstances #14

@@ -760,7 +760,7 @@ class SkyfieldAlmanacType(AlmanacType):
                 logerr("%s %s" % (e.__class__.__name__,e))
             """
             djd = skyfield_time_to_djd(t)
-            return weewx.units.ValueHelper(ValueTuple(djd, "dublin_jd", "group_time"),
+            return weewx.units.ValueHelper(ValueTuple(djd[idx], "dublin_jd", "group_time"),
                                            context="ephem_year",
                                            formatter=almanac_obj.formatter,
                                            converter=almanac_obj.converter)
