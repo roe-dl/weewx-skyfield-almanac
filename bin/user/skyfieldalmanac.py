@@ -944,12 +944,12 @@ class SkyfieldAlmanacBinder:
         then_almanac = self.almanac(almanac_time=then_time)
         # Find the visibility back then
         then_visible = getattr(then_almanac, self.heavenly_body).visible
-        # Take the difference
+        # Take the difference, which will also be a ValueTuple
         if today_visible.raw is None or then_visible.raw is None:
-            diff = None
+            diff_vt = ValueTuple(None, "second", "group_deltatime")
         else:
-            diff = today_visible.raw - then_visible.raw
-        return weewx.units.ValueHelper(ValueTuple(diff, "second", "group_deltatime"),
+            diff_vt = today_visible.value_t - then_visible.value_t
+        return weewx.units.ValueHelper(diff_vt,
                                        context="hour",
                                        formatter=self.almanac.formatter,
                                        converter=self.almanac.converter)
