@@ -402,7 +402,7 @@ def planet_phase(planet, t):
     try:
         len(t)
         tv = ts.tt_jd([x.tt for x in (t-diff_t)])
-    except TypeError:
+    except (TypeError,IndexError):
         tv = t - diff_t
     # position of the planet at that time
     v = planet.at(tv)
