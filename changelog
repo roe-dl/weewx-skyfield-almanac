@@ -17,9 +17,11 @@
 * handle unknown Earth satellites
 * `weectl` option `--download-ephemeris` to download ephemerides during installation
 * `weectl` option `--skip-localization` for user Michael K.
-0.4
+0.4 08jan2025
 * `parallactic_angle`
 * work around configobj bug that can create unreadable config files
 * units of distance used in astronomy
 * configurable LOOP packet augmentation
 * fix bug that caused multiple results for `previous_*` and `next_*` in some circumstances #14
+* fix bug that caused IndexError in `planet_pahse()` #15
+* preserve unit in `visible_change()` #16
