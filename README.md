@@ -69,6 +69,7 @@ source ~/weewx-venv/bin/activate
 pip install numpy
 pip install pandas
 pip install skyfield
+pip install requests
 ```
 
 ## Installation instructions

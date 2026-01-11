@@ -25,3 +25,5 @@
 * fix bug that caused multiple results for `previous_*` and `next_*` in some circumstances #14
 * fix bug that caused IndexError in `planet_pahse()` #15
 * preserve unit in `visible_change()` #16
+0.5
+* module 'requests' is required in Debian 13 #17
