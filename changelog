@@ -28,3 +28,4 @@
 0.5
 * module 'requests' is required in Debian 13 #17
 * revised internationalization
+* fix bug that can cause an AttributeError in `genVisibleTimespans()` #18

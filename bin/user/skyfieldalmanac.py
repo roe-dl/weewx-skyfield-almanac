@@ -1401,8 +1401,8 @@ class SkyfieldAlmanacBinder:
         tse = skyfield_time_to_timestamp(tse)
         # If the list starts with a timestamp of setting, remove it
         if len(tri)>0 and len(tse)>0 and tse[0]<tri[0]: 
-            tse.pop(0)
-            yse.pop(0)
+            tse = tse[1:]
+            yse = yse[1:]
         # Return timespans as WeeWX type `TimeSpan`
         for rising, yrising, setting, ysetting in zip(tri,yri,tse,yse):
             if yrising and ysetting:
