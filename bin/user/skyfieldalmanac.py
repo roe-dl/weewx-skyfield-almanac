@@ -71,7 +71,7 @@
     
 """
 
-VERSION = "0.4"
+VERSION = "0.5"
 
 # IERS timescale file as hardcoded in Skyfield
 TIMESCALE_FILE = 'finals2000A.all'

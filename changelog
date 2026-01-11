@@ -27,3 +27,4 @@
 * preserve unit in `visible_change()` #16
 0.5
 * module 'requests' is required in Debian 13 #17
+* revised internationalization
