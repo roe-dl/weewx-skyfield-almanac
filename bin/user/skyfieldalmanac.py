@@ -256,6 +256,7 @@ def timestamp_to_skyfield_time(timestamp, offset=0):
             skyfield.units.Time: the same timestamp converted
     """
     if timestamp is None: return ts.utc(None)
+    if isinstance(timestamp,(list,tuple)): timestamp = numpy.array(timestamp)
     return ts.utc(1970,1,1+(timestamp+offset)/DAY_S)
 
 def skyfield_time_to_djd(ti):
@@ -628,6 +629,14 @@ class SkyfieldAlmanacType(AlmanacType):
     def get_almanac_data(self, almanac_obj, attr):
         """ calculate attribute """
         global ephemerides, planets_list, satcatalogues
+        if attr=='datetime':
+            # date and time $almanac is bound to
+            return weewx.units.ValueHelper(
+                ValueTuple(almanac_obj.time_ts, "unix_epoch", "group_time"),
+                context="ephem_year",
+                formatter=almanac_obj.formatter,
+                converter=almanac_obj.converter
+            )
         if ts is None or ephemerides is None:
             raise weewx.UnknownType(attr)
         if attr=='sunrise':
@@ -778,6 +787,23 @@ class SkyfieldAlmanacType(AlmanacType):
             _, _, idx = planet_phase(ephemerides['mercury'],time_ti)
             if attr=='mercury_index': return idx
             return _get_phases(almanac_obj,'mercury')[idx]
+        elif attr in {'dut1','delta_t'}:
+            if attr=='dut1':
+                # the difference UT1-UTC measured in seconds
+                vt = ValueTuple(time_ti.dut1,'second','group_deltatime')
+            elif attr=='delta_t':
+                # the difference TT-UT1 measured in seconds
+                vt = ValueTuple(time_ti.delta_t,'second','group_deltatime')
+                loginf('--- %s %s %s' % (type(vt[0]),vt[0],vt))
+            if isinstance(vt[0],numpy.ndarray):
+                if vt[0].ndim:
+                    vt = ValueTuple(list(vt[0]),vt[1],vt[2])
+                else:
+                    vt = ValueTuple(vt[0].item(),vt[1],vt[2])
+            return weewx.units.ValueHelper(vt,
+                                           context = 'ephem_day',
+                                           formatter=almanac_obj.formatter,
+                                           converter=almanac_obj.converter)
         # Check to see if the attribute is a sidereal angle
         elif attr == 'sidereal_time' or attr == 'sidereal_angle':
             # Local Apparent Sidereal Time (LAST)
@@ -1024,10 +1050,7 @@ class SkyfieldAlmanacBinder:
                 vt = ValueTuple(hlat.radians,'radian','group_angle')
             else:
                 vt = ValueTuple(hlon.radians,'radian','group_angle')
-            return ValueHelper(vt,
-                               context="ephem_year",
-                               formatter=self.almanac.formatter,
-                               converter=self.almanac.converter)
+            return self._get_valuehelper(vt, context="ephem_year")
         
         if attr in {'astro_ra','astro_dec','astro_dist','a_ra','a_dec','a_dist',
                     'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist',
@@ -1110,10 +1133,7 @@ class SkyfieldAlmanacBinder:
                     vt = ValueTuple(dec.radians,'radian','group_angle')
                 else:
                     vt = ValueTuple(distance.km,'km','group_distance')
-            return ValueHelper(vt,
-                               context="ephem_day",
-                               formatter=self.almanac.formatter,
-                               converter=self.almanac.converter)
+            return self._get_valuehelper(vt, context="ephem_day")
         
         observer, horizon, body = _get_observer(
                                self.almanac,self.heavenly_body,self.use_center)
@@ -1161,10 +1181,7 @@ class SkyfieldAlmanacBinder:
                 )
                 pa = -pa.radians if pa.radians<pi else 2*pi-pa.radians
                 vt = ValueTuple(pa,'radian','group_angle')
-                return ValueHelper(vt,
-                               context="ephem_day",
-                               formatter=self.almanac.formatter,
-                               converter=self.almanac.converter)
+                return self._get_valuehelper(vt, context="ephem_day")
             if attr==('%s_fullness' % self.heavenly_body.lower()):
                 # `moon_fullness`, `venus_fullness`, `mercury_fullness`
                 return position.fraction_illuminated(ephemerides[SUN])*100.0
@@ -1176,10 +1193,7 @@ class SkyfieldAlmanacBinder:
                 alt_sun, az_sun, _ = observer.at(ti).observe(ephemerides[SUN]).apparent().altaz()
                 a = moon_tilt(alt_moon.radians,alt_sun.radians,az_moon.radians-az_sun.radians)
                 vt = ValueTuple(a,'radian','group_angle')
-                return ValueHelper(vt,
-                                               context="ephem_day",
-                                               formatter=self.almanac.formatter,
-                                               converter=self.almanac.converter)
+                return self._get_valuehelper(vt, context="ephem_day")
             if attr in {'az','alt','alt_dist','azimuth','altitude','alt_distance'}:
                 alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure if self.almanac.pressure else 'standard')
                 if attr=='az':
@@ -1195,10 +1209,7 @@ class SkyfieldAlmanacBinder:
                         vt = ValueTuple(alt.radians,'radian','group_angle')
                     elif attr=='alt_distance':
                         vt = ValueTuple(distance.km,'km','group_distance')
-                    return ValueHelper(vt,
-                                               context="ephem_day",
-                                               formatter=self.almanac.formatter,
-                                               converter=self.almanac.converter)
+                    return self._get_valuehelper(vt, context="ephem_day")
             if attr in {'ra','dec','dist','topo_ra','topo_dec','topo_dist'}:
                 ra, dec, distance = position.radec('date')
                 if attr=='ra':
@@ -1214,10 +1225,7 @@ class SkyfieldAlmanacBinder:
                         vt = ValueTuple(dec.radians,'radian','group_angle')
                     elif attr=='topo_dist':
                         vt = ValueTuple(distance.km,'km','group_distance')
-                    return ValueHelper(vt,
-                                               context="ephem_day",
-                                               formatter=self.almanac.formatter,
-                                               converter=self.almanac.converter)
+                    return self._get_valuehelper(vt, context="ephem_day")
             if attr in {'ha','ha_dec','ha_dist',
                         'hour_angle','ha_declination','ha_distance'}:
                 # measured from the plane of the Earth's physical geographic
@@ -1240,10 +1248,7 @@ class SkyfieldAlmanacBinder:
                         vt = ValueTuple(distance.km,'km','group_distance')
                     else:
                         vt = None
-                    return ValueHelper(vt,
-                                       context="ephem_day",
-                                       formatter=self.almanac.formatter,
-                                       converter=self.almanac.converter)
+                    return self._get_valuehelper(vt, context="ephem_day")
             # `attr` is not provided by this extension. So raise an exception.
             raise AttributeError("%s.%s" % (self.heavenly_body,attr))
 
@@ -1342,20 +1347,35 @@ class SkyfieldAlmanacBinder:
             if evt=='day_max_alt' or evt=='day_max_altitude':
                 val = val[-1] if len(val)>=1 else None
                 if evt=='day_max_alt': return val
-                return ValueHelper(ValueTuple(val,"radian","group_angle"),
-                                   context="day",
-                                   formatter=self.almanac.formatter,
-                                   converter=self.almanac.converter)
+                return self._get_valuehelper(ValueTuple(val,"radian","group_angle"),
+                                   context="day")
             y = len(t)>=1
         else:
             # `attr` is not provided by this extension. So raise an exception.
             raise AttributeError("%s.%s" % (self.heavenly_body,attr))
         time_djd = skyfield_time_to_djd(t[idx]) if t is not None and len(t)>=1 and y else None
-        return weewx.units.ValueHelper(ValueTuple(time_djd, "dublin_jd", "group_time"),
-                                           context="ephem_day",
-                                           formatter=self.almanac.formatter,
-                                           converter=self.almanac.converter)
+        return self._get_valuehelper(ValueTuple(time_djd, "dublin_jd", "group_time"),
+                                           context="ephem_day")
 
+    def _get_valuehelper(self, vt, context='current'):
+        """ return a ValueHelper 
+        
+            Note: In WeeWX a ValueTuple can contain a scalar or a Python list
+                  but not a numpy array.
+        """
+        # If the value of the ValueTuple is a numpy array, convert it into
+        # a Python list
+        if isinstance(vt[0],numpy.ndarray):
+            if vt[0].ndim:
+                vt = ValueTuple(list(vt[0]),vt[1],vt[2])
+            else:
+                vt = ValueTuple(vt[0].item(),vt[1],vt[2])
+        # Create a ValueHelper an return it.
+        return ValueHelper(vt,
+                           context=context,
+                           formatter=self.almanac.formatter,
+                           converter=self.almanac.converter)
+    
     def genVisibleTimespans(self, context=None, timespan=None, archive=None):
         """ generator function returning uptimes of body
         
@@ -1456,7 +1476,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         self.path = path
         logdbg("path to save Skyfield files: '%s'" % self.path)
         ephem_files = alm_conf_dict.get('ephemeris','de440s.bsp')
-        if isinstance(ephem_files,list):
+        if isinstance(ephem_files,(list,tuple)):
             # A list of files is provided. Save it.
             self.eph_files = ephem_files
             self.spk = [None]*len(ephem_files)
@@ -1474,7 +1494,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         self.log_ftp = weeutil.weeutil.to_bool(alm_conf_dict.get('log_ftp',False))
         # URLs to try to get timescale files from
         self.ts_urls = alm_conf_dict.get('timescale_url',None)
-        if self.ts_urls and not isinstance(self.ts_urls,list):
+        if self.ts_urls and not isinstance(self.ts_urls,(list,tuple)):
             self.ts_urls = [self.ts_urls]
         # TLE files
         self.earthsatellites = alm_conf_dict['EarthSatellites']
@@ -1903,12 +1923,12 @@ class LiveService(StdService):
         self.log_failure = alm_conf_dict['log_failure']
         # which observation types to provide
         obs = alm_conf_dict.get('live_data_observations',[])
-        if not isinstance(obs,list): obs = [obs]
+        if not isinstance(obs,(list,tuple)): obs = [obs]
         self.with_altaz = 'altitude' in obs or 'azimuth' in obs
         self.with_radec = 'declination' in obs or 'right ascension' in obs
         # additional heavenly bodies
         bodies = alm_conf_dict.get('live_data_bodies',[])
-        if not isinstance(bodies,list): bodies = [bodies]
+        if not isinstance(bodies,(list,tuple)): bodies = [bodies]
         self.additional_bodies = []
         for body in bodies:
             # The Sun is always included.

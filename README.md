@@ -222,6 +222,9 @@ If you encounter speed issues, here are some hints:
 * Calculating periods of visibility can slow down report creation.
   See section [`genVisibleTimespans()`](#genVisibleTimespans) 
   for details and solutions.
+* For some attributes `almanac_time` can take a list of timestamps.
+  Then, a list of respective results is returned. Using this can speed
+  up things.
 
 ## Customization of WeeWX using this extension
 
@@ -245,7 +248,8 @@ $almanac(almanac_time=time,            ## Unix epoch time
 ```
 
 If `almanac_time` is not specified, the actual time as returned by
-`$current.dateTime` is used.
+`$current.dateTime` is used. For some attributes `almanac_time`
+can take a list of timestamps.
 
 Latitude and longitude refer to the WGS84 ellipsoid as used by GPS.
 If `lat` and `lon` are not specified, the location of the station is used.
@@ -287,6 +291,9 @@ WeeWX datatype   | Pure float result | Meaning
 `sidereal_angle` | `sidereal_time`   | Local Apparent Sidereal Time
 `solar_angle`    | `solar_time`      | Local Apparent Solar Time
 `solar_datetime` | &mdash;           | true local solar date and time
+`datetime`       | &mdash;           | time `$almanac` is bound to as timezone time based on UTC
+`dut1`           | &mdash;           | difference between UT1 and UTC, typically less than one second
+`delta_t`        | &mdash;           | difference between TT and UT1
 
 Note: The tags `$almanac.sidereal_angle`, `$almanac.sidereal_time`,
 `$almanac.solar_angle`, and `$almanac.solar_time` return a value
