@@ -8,6 +8,7 @@ Almanac extension to WeeWX using Skyfield module
 * [Installation instructions](#installation-instructions)
 * [Configuration instructions](#configuration-instructions)
 * [Usage](#usage)
+* [Help! Report creation gets very slow](#help-report-creation-gets-very-slow)
 * [Customization of WeeWX using this extension](#customization-of-weewx-using-this-extension)
   * [General attributes](#general-attributes)
   * [Date and time](#date-and-time)
@@ -210,6 +211,17 @@ startup, `$almanac.hasExtras` becomes `True` and extended almanac
 information is available. Initialization can take several archive
 intervals to be completed at first run after installation, depending on 
 configuration.
+
+## Help! Report creation gets very slow
+
+If you encounter speed issues, here are some hints:
+
+* In case you use the 
+  [weewx-GTS extension](https://github.com/roe-dl/weewx-GTS)
+  you need at least version 1.2 of it together with this extension.
+* Calculating periods of visibility can slow down report creation.
+  See section [`genVisibleTimespans()`](#genVisibleTimespans) 
+  for details and solutions.
 
 ## Customization of WeeWX using this extension
 
