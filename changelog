@@ -23,11 +23,13 @@
 * units of distance used in astronomy
 * configurable LOOP packet augmentation
 * fix bug that caused multiple results for `previous_*` and `next_*` in some circumstances #14
-* fix bug that caused IndexError in `planet_pahse()` #15
+* fix bug that caused IndexError in `planet_phase()` #15
 * preserve unit in `visible_change()` #16
 0.5
 * module 'requests' is required in Debian 13 #17
 * revised internationalization
 * fix bug that can cause an AttributeError in `genVisibleTimespans()` #18
+* documentation regarding speed issues #19
 * `almanac_time` can take lists #19
 * new time attributes `datetime`, `dut1`, and `delta_t`
+* sub-almanacs

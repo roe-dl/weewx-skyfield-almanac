@@ -185,6 +185,7 @@ constellation_at = None # constellation function
 constellation_names = None # dictionary of abbrevations to names
 planets_list = []  # list of planets with available ephemeris
 satcatalogues = set()
+subalmanacs = [] # extensions to the SkyfieldAlmanacBinder
 
 # Unit group and unit used for true solar time and local mean time
 for _, unitgroup in weewx.units.std_groups.items():
@@ -794,7 +795,6 @@ class SkyfieldAlmanacType(AlmanacType):
             elif attr=='delta_t':
                 # the difference TT-UT1 measured in seconds
                 vt = ValueTuple(time_ti.delta_t,'second','group_deltatime')
-                loginf('--- %s %s %s' % (type(vt[0]),vt[0],vt))
             if isinstance(vt[0],numpy.ndarray):
                 if vt[0].ndim:
                     vt = ValueTuple(list(vt[0]),vt[1],vt[2])
@@ -1021,11 +1021,27 @@ class SkyfieldAlmanacBinder:
 
     def __getattr__(self, attr):
         """Get the requested observation, such as when the body will rise."""
-        global ephemerides, constellation_names
+        global ephemerides, constellation_names, subalmanacs
         # Don't try any attributes that start with a double underscore, or any of these
         # special names: they are used by the Python language:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
             raise AttributeError(attr)
+        
+        # Extensions to the SkyfieldAlmanacBinder
+        for subalmanac in subalmanacs:
+            try:
+                # get a ValueHelper or a binder class
+                return subalmanac.get_almanac_data(self, attr)
+            except weewx.UnknownType:
+                # This sub-almanac did not support the required attribute.
+                # Try the next one.
+                pass
+            except (TypeError,ValueError,LookupError,ArithmeticError,AttributeError,OSError) as e:
+                # There was an exception within the sub-almanac. Ignore the
+                # sub-almanac but complain to the log.
+                logerr("subalmanac %s.%s %s %s" % (
+                               self.heavenly_body,attr,e.__class__.__name__,e))
+                weeutil.logger.log_traceback(log.error, "subalmanac ****  ")
         
         # The `sun_distance` attribute is supported by the PyEphem almanac, 
         # too, but it is not documented in the customization guide of WeeWX.

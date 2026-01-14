@@ -23,6 +23,7 @@ Almanac extension to WeeWX using Skyfield module
   * [How to check whether this extension is available?](#how-to-check-whether-this-extension-is-available)
 * [PyEphem and Skyfield](#pyephem-and-skyfield)
 * [Live data](#live-data)
+* [For developers](#for-developers)
 * [Base data for calculation](#base-data-for-calculation)
   * [Time scales](#time-scales)
   * [Ephemerides](#ephemerides)
@@ -775,6 +776,29 @@ in case of a WeeWX pip installation:
 source ~/weewx-venv/bin/activate
 weectl database add-column solarAltitude
 ```
+
+## For developers
+
+Not only the WeeWX almanac itself is extensible. If you are a developer
+you can also write a WeeWX extension, that adds new attributes to heavenly
+bodies covered by this extension. To do so write an almanac extension
+and append a reference to it to `user.skyfieldalmanac.subalmanacs`.
+
+Within your extension you need to define a class based on
+`weewx.almanac.AlmanacType` with a method 
+`get_almanac_data(self, almanac_obj, attr)` in it.
+`attr` passes the attribute out of the template. For all attributes
+you want to support, do the calculation and return a `ValueHelper`.
+For attributes you do not support, raise `weewx.UnknownType(attr)`.
+`almanac_obj` provides the following information:
+* `almanac_obj.heavenly_body`: the name of the heavenly body. 
+* `almanac_obj.almanac.time_ts`: the timestamp `$almanac` is bound to.
+  It may be a list, in which case you have to do your calculation
+  for all the timestamps provided.
+* `almanac_obj.almanac.lat`: latitude
+* `almanac_obj.almanac.lon`: longitude
+* `almanac_obj.almanac.texts`: the `[Almanac]` section out of the language
+  file
 
 ## Base data for calculation
 
