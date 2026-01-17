@@ -858,6 +858,19 @@ class SkyfieldAlmanacType(AlmanacType):
                                 context="day",
                                 formatter=formatter,
                                 converter=almanac_obj.converter)
+        elif attr in {'equation_of_time','legacy_equation_of_time'}:
+            # equation of time
+            # modern (definition of USNO): EoT = LAT - LMT (apparent minus mean)
+            # historical and french: EoT = LMT - LAT (mean minus apparent)
+            val = (time_ti.ut1+almanac_obj.lon/360.0)
+            val = (val-numpy.round(val,0))*86400 - almanac_obj.sun.ha*240
+            if val>43200: val -= 86400
+            if val<-43200: val += 86400
+            if attr=='equation_of_time': val = -val
+            return ValueHelper(ValueTuple(val,'second','group_deltatime'),
+                               context='ephem_day',
+                               formatter=almanac_obj.formatter,
+                               converter=almanac_obj.converter)
         elif attr.lower() in ephemerides:
             # The attribute is a heavenly body (such as 'sun', or 'venus').
             # Bind the almanac and the heavenly body together and return as a

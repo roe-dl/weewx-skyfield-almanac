@@ -19,6 +19,8 @@ Almanac extension to WeeWX using Skyfield module
   * [Maps](#maps)
   * [Coordinate systems](#coordinate-systems)
   * [Units](#units)
+    * [Angles](#angles)
+    * [Distances](#distances)
   * [Localization](#localization)
   * [How to check whether this extension is available?](#how-to-check-whether-this-extension-is-available)
 * [PyEphem and Skyfield](#pyephem-and-skyfield)
@@ -295,6 +297,8 @@ WeeWX datatype   | Pure float result | Meaning
 `datetime`       | &mdash;           | time `$almanac` is bound to as timezone time based on UTC
 `dut1`           | &mdash;           | difference between UT1 and UTC, typically less than one second
 `delta_t`        | &mdash;           | difference between TT and UT1
+`equation_of_time` | &mdash; | equation of time according to USNO definition: EoT=LAT-LMT (apparent solar time minus mean solar time)
+`legacy_equation_of_time` | &mdash; | equation of time, historical and french: EoT=LMT-LAT (mean solar time minus apparent solar time)
 
 Note: The tags `$almanac.sidereal_angle`, `$almanac.sidereal_time`,
 `$almanac.solar_angle`, and `$almanac.solar_time` return a value
@@ -627,6 +631,8 @@ if available. `ha_declination` (`ha_dec`) is thus slightly different from
 
 ### Units
 
+#### Angles
+
 While WeeWX 4.X only knew one unit for angles, `degree_compass`, there 
 are more of them in WeeWX 5.X. `degree_compass` ist still there, but
 additionally there are `degree_angle` and `radian`.
@@ -641,6 +647,8 @@ Despite the compass direction originates at north, the unit `degree_compass`
 is used for other angles with other origins within WeeWX, too. They only have 
 in common that they are measured within the base plane of the respective 
 coordinate system.
+
+#### Distances
 
 In Astronomy huge distances are measured. To express them astronomers use
 special units:
