@@ -99,7 +99,7 @@ class SkyfieldInstaller(ExtensionInstaller):
                                 dest_fn = os.path.join(lang_dir,'cz.conf')
                             # check if the target file exists and update it
                             if os.path.isfile(dest_fn):
-                                self._update_lang_file(engine, src_fn, dest_fn)
+                                self._update_lang_file(engine, skin_pth, src_fn, dest_fn)
         # Download Ephemerides
         if self.is_download_ephemeris:
             data_dir = engine.config_dict.get('DatabaseTypes',
@@ -124,7 +124,7 @@ class SkyfieldInstaller(ExtensionInstaller):
         # return whether changes to the configuration file were done
         return False
 
-    def _update_lang_file(self, engine, src_fn, dest_fn):
+    def _update_lang_file(self, engine, skin, src_fn, dest_fn):
         """ Update language definition files """
         # get the original language file
         try:
@@ -147,6 +147,9 @@ class SkyfieldInstaller(ExtensionInstaller):
             if ('Astronomical' in config.get('Texts',dict()) and 
                 'Astronomical' in to_be_merged.get('Texts',dict())):
                 conditional_merge(config['Texts']['Astronomical'],to_be_merged['Texts']['Astronomical'])
+            # special translations for specific skins
+            if skin in to_be_merged:
+                conditional_merge(config,to_be_merged[skin])
             # save
             if engine.dry_run:
                 engine.printer.out(config)
