@@ -53,6 +53,11 @@ WeeWX datatype   | Pure float result | Meaning
 -----------------|-------------------|----------------
 `solar_angle`    | `solar_time`      | Local Apparent Solar Time
 `solar_datetime` | &mdash;           | true local solar date and time
+`datetime`       | &mdash;           | time `$almanac` is bound to as timezone time based on UTC
+`dut1`           | &mdash;           | difference between UT1 and UTC, typically less than one second
+`delta_t`        | &mdash;           | difference between TT and UT1
+`equation_of_time` | &mdash; | equation of time according to USNO definition: EoT=LAT-LMT (apparent solar time minus mean solar time)
+`legacy_equation_of_time` | &mdash; | equation of time, historical and french: EoT=LMT-LAT (mean solar time minus apparent solar time)
 
 ### Calendar events
 
