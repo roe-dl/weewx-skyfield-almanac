@@ -868,7 +868,7 @@ class SkyfieldAlmanacType(AlmanacType):
             if val<-43200: val += 86400
             if attr=='equation_of_time': val = -val
             return ValueHelper(ValueTuple(val,'second','group_deltatime'),
-                               context='ephem_day',
+                               context='hour',
                                formatter=almanac_obj.formatter,
                                converter=almanac_obj.converter)
         elif attr.lower() in ephemerides:
