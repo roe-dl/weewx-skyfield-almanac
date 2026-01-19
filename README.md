@@ -219,6 +219,11 @@ configuration.
 
 If you encounter speed issues, here are some hints:
 
+* To check if this extension is part of the problem you can set 
+  `enable=false` in section `[Almanac]`, sub-section `[[Skyfield]]`, 
+  in `weewx.conf`. That switches it off and switches the WeeWX built-in
+  PyEphem based almanac on. Make sure, you restarted WeeWX after editing
+  `weewx.conf`.
 * In case you use the 
   [weewx-GTS extension](https://github.com/roe-dl/weewx-GTS)
   you need at least version 1.2 of it together with this extension.
