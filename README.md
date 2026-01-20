@@ -215,6 +215,12 @@ information is available. Initialization can take several archive
 intervals to be completed at first run after installation, depending on 
 configuration.
 
+Look at 
+[weewx-skymap-extension examples](https://github.com/roe-dl/weewx-skymap-almanac/tree/master/examples/Seasons)
+for a replacement almanac page for the
+WeeWX built-in Seasons skin to show additional values provided by this
+extension.
+
 ## Help! Report creation gets very slow
 
 If you encounter speed issues, here are some hints:
