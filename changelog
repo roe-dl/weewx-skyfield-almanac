@@ -34,3 +34,4 @@
 * new time attributes `datetime`, `dut1`, and `delta_t`
 * sub-almanacs
 * equation of time
+* libration

@@ -140,6 +140,8 @@ available if you have special requirements.
         enable = true
         # which ephemeris file to use
         ephemeris = de440s.bsp  # or de440.bsp or de441.bsp
+        # list planetary constants files
+        planetaryconstants = ...
         # use builtin timescale data or download it from IERS
         use_builtin_timescale = true
         # URL(s) of the timescale file (optional)
@@ -162,6 +164,10 @@ available if you have special requirements.
             file_name1 = url1
             file_name2 = url2
             ...
+        [[[Frames]]]
+            heavenly_body_name1 = frame_name1
+            heavenly_body_name2 = frame_name2
+            ...
 ```
 
 * `enable`: Enable this almanac extension
@@ -171,6 +177,8 @@ available if you have special requirements.
   [Ephemerides](#ephemerides) and
   [Planets and their moons: JPL ephemeris files](https://rhodesmill.org/skyfield/planets.html)
   for more details. 
+* `planetaryconstants`: List of URLs to `.tf`, `.tpc`, and `.bpc` files.
+  Optional. Required for reference frames only.
 * `use_builtin_timescale`: Use builtin timescale data or download them
   from IERS. See [UT1 and downloading IERS data](https://rhodesmill.org/skyfield/time.html#ut1-and-downloading-iers-data)
   for details.
@@ -203,6 +211,9 @@ available if you have special requirements.
   The file name is used when saved to disk. You can find such files
   for example at [CelesTrak](https://celestrak.org/NORAD/elements/).
   See section [Earth satellites](#earth-satellites) for more datails.
+* `[[[Frames]]]`: Planetary reference frames. Optional. See
+  [Skyfield: Planetary Reference Frames](https://rhodesmill.org/skyfield/planetary.html).
+  Actually required for the libration calculation only.
 
 ## Usage
 
@@ -417,6 +428,10 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
 &mdash; | `constellation` | name of the constellation the actual position of the body is in; in local language if available, otherwise in latin
 &mdash; | `constellation_abbr` | abbrevation of the constellation the actual position of the body is in
+`libration_lat` | &mdash; | libration selenographic latitude (**alpha**)
+`libration_lon` | &mdash; | libration selenographic longitude (**alpha**)
+`topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth (**alpha**)
+`topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth (**alpha**)
 
 And these attributes are supported by both core WeeWX using PyEphem and
 this extension using Skyfield:
@@ -450,6 +465,14 @@ too, but undocumented. For that reason the result is not really the same.
 `ha` of PyEphem is in the range 0 to 360°, `ha` of Skyfield -180° to +180°.
 `parallactic_angle` of PyEphem is a PyEphem angle, `parallactic_angle` of
 Skyfield is a WeeWX data type.
+
+Lunar libration is defined as the location on the Moon in
+selenographic coordinates that is nearest to the Earth. In case of 
+`libration_lat` and `libration_lon` this is in resprect to the Earth
+as a planet. In case of `topo_libration_lat` and `topo_libration_lon` 
+it is in respect to the observer's position. Libration is not only
+defined for the Moon but for all heavenly bodies that are in tidal
+locking. Libration calculation is still alpha code.
 
 Try
 

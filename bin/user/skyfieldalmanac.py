@@ -98,7 +98,7 @@ import numpy
 from skyfield import VERSION as SKYFIELD_VERSION
 from skyfield import almanac
 try:
-    from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star, Angle
+    from skyfield.api import N, S, E, W, Loader, wgs84, EarthSatellite, Star, Angle, PlanetaryConstants
 except (ImportError,PermissionError):
     N = E = +1.0
     S = W = -1.0
@@ -107,6 +107,7 @@ except (ImportError,PermissionError):
     from skyfield.sgp4lib import EarthSatellite
     from skyfield.starlib import Star
     from skyfield.units import Angle
+    from skyfield.planetarylib import PlanetaryConstants
 from skyfield.earthlib import refraction
 from skyfield.searchlib import find_discrete, find_maxima, find_minima
 from skyfield.data import iers
@@ -177,6 +178,7 @@ DEFAULT_PHASES = weewx.defaults.defaults['Almanac']['moon_phases']
 # Global variables
 ts = None
 ephemerides = None
+planetaryconstants = None
 sun_and_planets = None
 stars = None
 starnames = dict() # HIP number to name
@@ -186,6 +188,7 @@ constellation_names = None # dictionary of abbrevations to names
 planets_list = []  # list of planets with available ephemeris
 satcatalogues = set()
 subalmanacs = [] # extensions to the SkyfieldAlmanacBinder
+frames = dict()
 
 # Unit group and unit used for true solar time and local mean time
 for _, unitgroup in weewx.units.std_groups.items():
@@ -1034,7 +1037,7 @@ class SkyfieldAlmanacBinder:
 
     def __getattr__(self, attr):
         """Get the requested observation, such as when the body will rise."""
-        global ephemerides, constellation_names, subalmanacs
+        global ephemerides, constellation_names, subalmanacs, frames
         # Don't try any attributes that start with a double underscore, or any of these
         # special names: they are used by the Python language:
         if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
@@ -1086,9 +1089,29 @@ class SkyfieldAlmanacBinder:
                     'earth_distance','elong','elongation','mag',
                     'sublat','sublong','sublatitude','sublongitude',
                     'elevation','size','radius','radius_size',
-                    'constellation','constellation_abbr'}:
+                    'constellation','constellation_abbr',
+                    'libration_lat','libration_lon'}:
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
+            if attr in {'libration_lat','libration_lon'}:
+                # libration of a tidal locked body
+                # The libration is expressed as the latitude and longitude
+                # of the body's location that is currently nearest to the
+                # reference body. In case of the Moon this is the Earth.
+                # https://rhodesmill.org/skyfield/planetary.html#computing-lunar-libration
+                if self.heavenly_body not in frames:
+                    raise ValueError('no reference frame for %s to calculate libraton' % self.heavenly_body)
+                if self.heavenly_body==EARTHMOON:
+                    reference = ephemerides[EARTH]
+                elif self.heavenly_body=='mercury':
+                    reference = ephemerides[SUN]
+                p = (reference-body).at(t)
+                lat, lon, _ = p.frame_latlon(frames[self.heavenly_body])
+                if attr=='libration_lat':
+                    vt = ValueTuple(lat.radians,'radian','group_angle')
+                else:
+                    vt = ValueTuple((lon.degrees+180.0)%360.0-180.0,'degree_compass','group_direction')
+                return self._get_valuehelper(vt, context="month")
             if isinstance(body,EarthSatellite):
                 astrometric = body.at(t)
             else:
@@ -1192,6 +1215,14 @@ class SkyfieldAlmanacBinder:
         else:
             # convert given timestamp
             ti = timestamp_to_skyfield_time(self.almanac.time_ts)
+            if attr in {'topo_libration_lat','topo_libration_lon'}:
+                p = (observer-body).at(ti)
+                lat, lon, _ = p.frame_latlon(frames[self.heavenly_body])
+                if attr=='topo_libration_lat':
+                    vt = ValueTuple(lat.radians,'radian','group_angle')
+                else:
+                    vt = ValueTuple((lon.degrees+180.0)%360.0-180.0,'degree_compass','group_direction')
+                return self._get_valuehelper(vt, context="month")
             if isinstance(body,EarthSatellite):
                 station = wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)
                 position = (body-station).at(ti)
@@ -1513,6 +1544,30 @@ class SkyfieldMaintenanceThread(threading.Thread):
             # One single file is provided. Convert it into a list.
             self.eph_files = [ephem_files]
             self.spk = [None]
+        pck_files = alm_conf_dict.get(
+            'planetaryconstants',
+            [
+                'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011_n0066.tpc',
+                'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/moon_assoc_me.tf',
+                'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/moon_assoc_pa.tf',
+                'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/moon_de440_250416.tf',
+                'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/moon_pa_de440_200625.bpc',
+                #'earth_latest_high_prec.bpc'
+            ]
+        )
+        if isinstance(pck_files,(list,tuple)):
+            self.pck_files = pck_files
+        else:
+            self.pck_files = [pck_files]
+        self.frames_dict = alm_conf_dict.get('Frames',dict())
+        if not EARTHMOON in self.frames_dict:
+            for file in self.pck_files:
+                if 'de440' in file:
+                    self.frames_dict[EARTHMOON] = 'MOON_ME_DE440_ME421'
+                    break
+                if 'de421' in file:
+                    self.frames_dict[EARTHMOON] = 'MOON_ME_DE421'
+                    break
         # Use Skyfield's built-in timescale or retrieve it from IERS?
         self.builtin = weeutil.weeutil.to_bool(alm_conf_dict.get('use_builtin_timescale',True))
         # Update interval for timescale (if not built-in) and ephemerides
@@ -1538,6 +1593,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
         # Variables to remember updates
         self.last_ts_update = 0
         self.last_eph_update = [0]*len(self.eph_files)
+        self.last_pck_update = [0]*len(self.pck_files)
         self.last_sat_update = dict()
         logdbg("thread '%s': initialized" % self.name)
     
@@ -1612,7 +1668,7 @@ class SkyfieldMaintenanceThread(threading.Thread):
     
     def init_skyfield(self):
         """ download ephemeris data or read them from file """
-        global ts, ephemerides, sun_and_planets, planets_list
+        global ts, ephemerides, sun_and_planets, planets_list, planetaryconstants, frames
         # instantiate the loader
         load = Loader(self.path,verbose=False)
         # get current time
@@ -1693,6 +1749,52 @@ class SkyfieldMaintenanceThread(threading.Thread):
             sun_and_planets = _sem
             planets_list = _pl
             loginf("thread '%s': ephemerides %s" % (self.name,s))
+        # planetary constants
+        ct = 0
+        pc = PlanetaryConstants()
+        for idx, file in enumerate(self.pck_files):
+            if self.last_pck_update[idx]<=now:
+                try:
+                    # The last part of the path or URL is the file name.
+                    file_name = file.split('/')[-1]
+                    # Load the file
+                    _pck = load(file)
+                    if _pck:
+                        ct += 1
+                        if self.pck_files[idx].endswith('.bpc'):
+                            # binary file
+                            # TODO: When segmented bpc files are implemented
+                            #       in Skyfield, we can go back to the 
+                            #       original method. See
+                            #       https://github.com/skyfielders/python-skyfield/issues/960
+                            #       for background.
+                            #pck.read_binary(self.pck[idx])
+                            self.read_binary(pc,_pck)
+                        else:
+                            pc.read_text(_pck)
+                        self.last_pck_update[idx] = time.time()
+                except (OSError,ValueError) as e:
+                    logerr("thread '%s': error downloading pck file %s - %s" % (self.name,e.__class__.__name__,e))
+                except ValueError as e:
+                    logerr("thread '%s': file %s %s - %s" % (self.name,self.pck_files[idx],e.__class__.__name__,e))
+        # create PlanetaryConstants object
+        if ct:
+            planetaryconstants = pc
+            loginf("thread '%s': %d pck files loaded" % (self.name,ct))
+            try:
+                logdbg("thread '%s': pck variables %s" % (self.name,{v for v in pc.variables}))
+                #loginf("thread '%s': %s = %s" % (self.name,'FRAME_MOON_ME',pc.variables.get('FRAME_MOON_ME')))
+                #loginf("thread '%s': pc variables %s" % (self.name,{v:pc.variables[v] for v in pc.variables if 'FRAME_31001' in v}))
+            except (ValueError,TypeError,AttributeError,LookupError):
+                pass
+            # planetary reference frame
+            for body, frame_name in self.frames_dict.items():
+                try:
+                    frames[body] = planetaryconstants.build_frame_named(
+                                                                    frame_name)
+                    loginf("thread '%s': successfully created %s reference frame" % (self.name,body.capitalize()))
+                except (NotImplementedError,LookupError,ValueError,TypeError) as e:
+                    logerr("thread '%s': %s frame %s - %s" % (self.name,body.capitalize(),e.__class__.__name__,e))
         # `ephemerides` and `ts` are up to date if they were updated less 
         # than 24 hours ago.
         return self.last_ts_update>now and min(self.last_eph_update)>now
@@ -1857,7 +1959,30 @@ class SkyfieldMaintenanceThread(threading.Thread):
         except OSError as e:
             logerr("thread '%s': FTP download %s - %s" % (self.name,e.__class__.__name__,e))
             return None
+
+    def read_binary(self, pc, file):
+        """Read binary segments descriptions from a DAF/PCK file.
+
+        Copyright (C) Brandon Rhodes
         
+        Binary segments live in ``.bpc`` files and predict how a body
+        like a planet or moon will be oriented on a given date.
+
+        """
+        from jplephem.pck import DAF, PCK
+        file.seek(0)
+        if file.read(7) != b'DAF/PCK':
+            raise ValueError('file must start with the bytes "DAF/PCK"')
+        pck = PCK(DAF(file))
+        pc._binary_files.append(pck)
+        for segment in pck.segments:
+            try:
+                pc._segment_list.append(segment)
+            except AttributeError:
+                pass
+            if segment.body not in pc._segment_map:
+                pc._segment_map[segment.body] = segment
+
 
 class SkyfieldService(StdService):
     """ Service to initialize the Skyfield almanac extension """
