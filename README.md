@@ -432,6 +432,7 @@ WeeWX datatype | Pure float result | Meaning
 `libration_lon` | &mdash; | libration selenographic longitude (**alpha**)
 `topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth (**alpha**)
 `topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth (**alpha**)
+`topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to celestial sphere and the celestial meridian (**alpha**)
 
 And these attributes are supported by both core WeeWX using PyEphem and
 this extension using Skyfield:

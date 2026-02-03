@@ -600,6 +600,22 @@ def _adjust_to_refraction(observer, body, t, y, horizon_degrees, func):
     return t, is_above_horizon
 
 
+def get_axis(time_ti, observer, body):
+    """ get body axis """
+    global ephemerides, frames, planetaryconstants
+    try:
+        frame = frames[body]
+        eph = ephemerides[body]
+        south = eph + planetaryconstants.build_latlon_degrees(frame, -90.0, 0.0)
+        north = eph + planetaryconstants.build_latlon_degrees(frame, 90.0, 0.0)
+        altaz1 = observer.at(time_ti).observe(south).apparent().altaz()
+        altaz2 = observer.at(time_ti).observe(north).apparent().altaz()
+        return position_angle_of(altaz1,altaz2)
+    except (AttributeError,LookupError,TypeError,ValueError,ArithmeticError) as e:
+        logerr('error calculating %s axis: %s %s' % (body.capitalize(),e.__class__.__name__,e))
+    return None
+
+
 class SkyfieldAlmanacType(AlmanacType):
     """ Almanac extension to use the Skyfield module for almanac computation """
     
@@ -1223,6 +1239,10 @@ class SkyfieldAlmanacBinder:
                 else:
                     vt = ValueTuple((lon.degrees+180.0)%360.0-180.0,'degree_compass','group_direction')
                 return self._get_valuehelper(vt, context="month")
+            if attr=='topo_coordinate_axis':
+                axis = get_axis(ti, observer, self.heavenly_body)
+                vt = ValueTuple(axis.radians,'radian','group_angle')
+                return self._get_valuehelper(vt, context="ephem_day")
             if isinstance(body,EarthSatellite):
                 station = wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)
                 position = (body-station).at(ti)
