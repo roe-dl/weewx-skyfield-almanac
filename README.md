@@ -211,9 +211,13 @@ available if you have special requirements.
   The file name is used when saved to disk. You can find such files
   for example at [CelesTrak](https://celestrak.org/NORAD/elements/).
   See section [Earth satellites](#earth-satellites) for more datails.
-* `[[[Frames]]]`: Planetary reference frames. Optional. See
+* `[[[Frames]]]`: Planetary reference frames. Optional.
+  Used to get a location on the surface of a heavenly body, for example
+  the Moon.
+  Actually required for the libration and coordinate axis calculation only.
+  See
   [Skyfield: Planetary Reference Frames](https://rhodesmill.org/skyfield/planetary.html).
-  Actually required for the libration calculation only.
+  for more details.
 
 ## Usage
 
@@ -432,7 +436,7 @@ WeeWX datatype | Pure float result | Meaning
 `libration_lon` | &mdash; | libration selenographic longitude (**alpha**)
 `topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth (**alpha**)
 `topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth (**alpha**)
-`topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to celestial sphere and the celestial meridian (**alpha**)
+`topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to the celestial sphere and the celestial meridian (**alpha**) 0° if the axis is vertically oriented in the sky. Especially useful for the Moon.
 
 And these attributes are supported by both core WeeWX using PyEphem and
 this extension using Skyfield:

@@ -610,7 +610,8 @@ def get_axis(time_ti, observer, body):
         north = eph + planetaryconstants.build_latlon_degrees(frame, 90.0, 0.0)
         altaz1 = observer.at(time_ti).observe(south).apparent().altaz()
         altaz2 = observer.at(time_ti).observe(north).apparent().altaz()
-        return position_angle_of(altaz1,altaz2)
+        axis = position_angle_of(altaz1,altaz2)
+        return Angle(degrees=axis.degrees if axis.degrees<=180.0 else axis.degrees-360.0, preference=axis.preference, signed=True)
     except (AttributeError,LookupError,TypeError,ValueError,ArithmeticError) as e:
         logerr('error calculating %s axis: %s %s' % (body.capitalize(),e.__class__.__name__,e))
     return None
