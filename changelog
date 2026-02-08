@@ -36,3 +36,4 @@
 * equation of time
 * libration
 * attribute `topo_coordinate_axis`
+* function `moonMonthSpan()`

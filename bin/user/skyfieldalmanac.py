@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # Almanac extension to WeeWX using Skyfield
-# Copyright (C) 2025 Johanna Roedenbeck
+# Copyright (C) 2025, 2026 Johanna Karen Roedenbeck
 
 """
 
@@ -615,6 +615,23 @@ def get_axis(time_ti, observer, body):
     except (AttributeError,LookupError,TypeError,ValueError,ArithmeticError) as e:
         logerr('error calculating %s axis: %s %s' % (body.capitalize(),e.__class__.__name__,e))
     return None
+
+def moonMonthSpan(time_ts):
+    """ get timespan from new moon to new moon """
+    t0 = timestamp_to_skyfield_time(time_ts,-2592000)
+    t1 = timestamp_to_skyfield_time(time_ts,2592000)
+    tt, kk = almanac.find_discrete(t0, t1, almanac.moon_phases(ephemerides))
+    tt = tt[kk==0]
+    prev = None
+    next = None
+    for t in tt:
+        ts = skyfield_time_to_timestamp(t)
+        if ts>=time_ts:
+            next = ts
+            break
+        else:
+            prev = ts
+    return weeutil.weeutil.TimeSpan(prev,next)
 
 
 class SkyfieldAlmanacType(AlmanacType):

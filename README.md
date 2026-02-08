@@ -432,11 +432,11 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
 &mdash; | `constellation` | name of the constellation the actual position of the body is in; in local language if available, otherwise in latin
 &mdash; | `constellation_abbr` | abbrevation of the constellation the actual position of the body is in
-`libration_lat` | &mdash; | libration selenographic latitude (**alpha**)
-`libration_lon` | &mdash; | libration selenographic longitude (**alpha**)
-`topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth (**alpha**)
-`topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth (**alpha**)
-`topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to the celestial sphere and the celestial meridian (**alpha**) 0° if the axis is vertically oriented in the sky. Especially useful for the Moon.
+`libration_lat` | &mdash; | libration selenographic latitude (**beta**)
+`libration_lon` | &mdash; | libration selenographic longitude (**beta**)
+`topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth (**beta**)
+`topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth (**beta**)
+`topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to the celestial sphere and the celestial meridian (**beta**) 0° if the axis is vertically oriented in the sky. Especially useful for the Moon.
 
 And these attributes are supported by both core WeeWX using PyEphem and
 this extension using Skyfield:
@@ -477,7 +477,7 @@ selenographic coordinates that is nearest to the Earth. In case of
 as a planet. In case of `topo_libration_lat` and `topo_libration_lon` 
 it is in respect to the observer's position. Libration is not only
 defined for the Moon but for all heavenly bodies that are in tidal
-locking. Libration calculation is still alpha code.
+locking. Libration calculation is still beta code.
 
 Try
 
