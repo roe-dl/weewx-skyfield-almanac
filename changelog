@@ -37,3 +37,5 @@
 * libration
 * attribute `topo_coordinate_axis`
 * function `moonMonthSpan()`
+* observation type `lunarTime` as Moon hour angle
+* lunar nodes (astronomical)

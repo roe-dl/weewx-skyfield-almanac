@@ -67,6 +67,8 @@ Previous event | Next event | Meaning
 `previous_aphelion` | `next_aphelion` | aphelion of the Earth (when the Earth is farthest from the Sun)
 `previous_perigee_moon` | `next_perigee_moon` | perigee of the Moon (when the Moon is nearest to the Earth; in connection with full moon sometimes "supermoon")
 `previous_apogee_moon` | `next_apogee_moon` | apogee of the Moon (when the Moon is farthest from the Earth)
+`previous_ascending_node_moon` | `next_ascending_node_moon` | ascending node of the moon (when the Moon passes the ecliptic)
+`previous_descending_node_moon` | `next_descending_node_moon` | descending node of the Moon (when the Moon passes the ecliptic)
 `previous_new_venus` | `next_new_venus` | maximum of phase angle; Venus changes from evening to morning side
 `previous_first_quarter_venus` | `next_first_quarter_venus` | waxing 90 degrees of phase angle
 `previous_full_venus` | `next_full_venus` | minimum of phase angle

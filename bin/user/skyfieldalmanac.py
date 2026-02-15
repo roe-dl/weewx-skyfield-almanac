@@ -649,7 +649,9 @@ class SkyfieldAlmanacType(AlmanacType):
         'full_moon':(2,),
         'last_quarter_moon':(3,),
         'first_quarter_venus':(False,),
-        'last_quarter_venus':(True,)
+        'last_quarter_venus':(True,),
+        'ascending_node_moon':(1,),
+        'descending_node_moon':(0,),
     }
 
     @property
@@ -696,9 +698,15 @@ class SkyfieldAlmanacType(AlmanacType):
                       'previous_full_moon', 'next_full_moon',
                       'previous_last_quarter_moon', 'next_last_quarter_moon',
                       'previous_first_quarter_venus','next_first_quarter_venus',
-                      'previous_last_quarter_venus','next_last_quarter_venus'}:
+                      'previous_last_quarter_venus','next_last_quarter_venus',
+                      'previous_ascending_node_moon','next_ascending_node_moon',
+                      'previous_descending_node_moon','next_descending_node_moon'}:
             previous = attr.startswith('previous')
-            if attr.endswith('_moon'):
+            if attr.endswith('_node_moon'):
+                # lunar nodes
+                interval = 2592000
+                func = almanac.moon_nodes
+            elif attr.endswith('_moon'):
                 # moon phases
                 interval = 2592000
                 func = almanac.moon_phases
@@ -2153,6 +2161,7 @@ class LiveService(StdService):
         weewx.units.obs_group_dict.setdefault('solarPath','group_percent')
         weewx.units.obs_group_dict.setdefault('solarRightAscension','group_direction')
         weewx.units.obs_group_dict.setdefault('solarDeclination','group_angle')
+        weewx.units.obs_group_dict.setdefault('lunarTime','group_direction')
         for _, prefix in self.additional_bodies:
             weewx.units.obs_group_dict.setdefault('%sAltitude' % prefix,'group_angle')
             weewx.units.obs_group_dict.setdefault('%sAzimuth' % prefix,'group_direction')
@@ -2301,6 +2310,10 @@ class LiveService(StdService):
                     ra, dec, _ = position.radec('date')
                     packet['%sRightAscension' % prefix] = weewx.units.convertStd(ValueTuple(ra._degrees,'degree_compass','group_direction'),usUnits)[0]
                     packet['%sDeclination' % prefix] = weewx.units.convertStd(ValueTuple(dec.radians,'radian','group_angle'),usUnits)[0]
+                # moon hour angle
+                if body.lower()==EARTHMOON:
+                    ha, _, _ = position.hadec()
+                    packet['%sTime' % prefix] = weewx.units.convertStd(ValueTuple(ha._degrees+180.0,'degree_compass','group_direction'),usUnits)[0]
         except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError) as e:
             # report the error at most once every 5 minutes
             if self.log_failure and time.time()>=self.last_almanac_error+300:
