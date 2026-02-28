@@ -1132,11 +1132,10 @@ class SkyfieldAlmanacBinder:
                     'sublat','sublong','sublatitude','sublongitude',
                     'elevation','size','radius','radius_size',
                     'constellation','constellation_abbr',
-                    'libration_lat','libration_lon',
-                    'geo_ecliptic'}:
+                    'libration','geo_ecliptic'}:
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
-            if attr in {'libration_lat','libration_lon'}:
+            if attr=='libration':
                 # libration of a tidal locked body
                 # The libration is expressed as the latitude and longitude
                 # of the body's location that is currently nearest to the
@@ -1149,12 +1148,13 @@ class SkyfieldAlmanacBinder:
                 elif self.heavenly_body=='mercury':
                     reference = ephemerides[SUN]
                 p = (reference-body).at(t)
-                lat, lon, _ = p.frame_latlon(frames[self.heavenly_body])
-                if attr=='libration_lat':
-                    vt = ValueTuple(lat.radians,'radian','group_angle')
-                else:
-                    vt = ValueTuple((lon.degrees+180.0)%360.0-180.0,'degree_compass','group_direction')
-                return self._get_valuehelper(vt, context="month")
+                lat, lon, dist = p.frame_latlon(frames[self.heavenly_body])
+                return self._get_latlon_valuehelper(
+                    lat.radians,
+                    (lon.degrees+180.0)%360.0-180.0,
+                    dist.km,
+                    context='month'
+                )
             if isinstance(body,EarthSatellite):
                 astrometric = body.at(t)
             else:
@@ -1265,14 +1265,15 @@ class SkyfieldAlmanacBinder:
         else:
             # convert given timestamp
             ti = timestamp_to_skyfield_time(self.almanac.time_ts)
-            if attr in {'topo_libration_lat','topo_libration_lon'}:
+            if attr=='topo_libration':
                 p = (observer-body).at(ti)
-                lat, lon, _ = p.frame_latlon(frames[self.heavenly_body])
-                if attr=='topo_libration_lat':
-                    vt = ValueTuple(lat.radians,'radian','group_angle')
-                else:
-                    vt = ValueTuple((lon.degrees+180.0)%360.0-180.0,'degree_compass','group_direction')
-                return self._get_valuehelper(vt, context="month")
+                lat, lon, dist = p.frame_latlon(frames[self.heavenly_body])
+                return self._get_latlon_valuehelper(
+                    lat.radians,
+                    (lon.degrees+180.0)%360.0-180.0,
+                    dist.km,
+                    context='month'
+                )
             if attr=='topo_coordinate_axis':
                 axis = get_axis(ti, observer, self.heavenly_body)
                 vt = ValueTuple(axis.radians,'radian','group_angle')

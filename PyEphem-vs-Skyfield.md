@@ -102,10 +102,10 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
 &mdash; | `constellation_abbr` | abbrevation of the constellation the actual position of the body is in
 &mdash; | `constellation` | name of the constellation the actual position of the body is in
-`libration_lat` | &mdash; | libration selenographic latitude
-`libration_lon` | &mdash; | libration selenographic longitude
-`topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth
-`topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth
+`libration.latitude` | &mdash; | libration selenographic latitude
+`libration.longitude` | &mdash; | libration selenographic longitude
+`topo_libration.latitude` | &mdash; | libration selenographic latitude in reference to the observer on Earth
+`topo_libration.longitude` | &mdash; | libration seleonographic longitude in reference to the observer on Earth
 `topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to the celestial sphere and the celestial meridian
 
 ### Maps
