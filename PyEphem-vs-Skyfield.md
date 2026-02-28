@@ -85,6 +85,14 @@ WeeWX datatype | Pure float result | Meaning
 `hour_angle`   | `ha`              | topocentric hour angle
 `ha_declination` | `ha_dec`        | declination in reference to the coordinate system of the hour angle
 `ha_distance`  | `ha_dist`         | distance in referenc to the coordinate system of the hour angle
+`geo_ecliptic` | &mdash; | apparent geocentric coordinates as a dict of ValueHelper containing `latitude`, `longitude`, and `distance`
+`geo_ecliptic.latitude` | &mdash; | apparent geocentric ecliptic latitude
+`geo_ecliptic.longitude` | &mdash; | apparent geocentric ecliptic longitude
+`geo_ecliptic.distance` | &mdash; | apparent geocentric ecliptic distance
+`topo_ecliptic` | &mdash; | apparent topocentric coordinates as a dict of ValueHelper containing `latitude`, `longitude`, and `distance`
+`topo_ecliptic.latitude` | &mdash; | apparent topocentric ecliptic latitude
+`topo_ecliptic.longitude` | &mdash; | apparent topocentric ecliptic longitude
+`topo_ecliptic.distance` | &mdash; | apparent topocentric ecliptic distance
 `day_max_altitude` | `day_max_alt` | maximum altitude of the day
 `day_max_alt_time` | &mdash;       | timestamp of the maximum altitude of the day
 `moon_tilt` | &mdash; | crescent moon tilt angle (0 = illuminated side to the right on northern hemisphere, π = illuminated side to the left on northern hemisphere
@@ -94,11 +102,11 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
 &mdash; | `constellation_abbr` | abbrevation of the constellation the actual position of the body is in
 &mdash; | `constellation` | name of the constellation the actual position of the body is in
-`libration_lat` | &mdash; | libration selenographic latitude (**beta**)
-`libration_lon` | &mdash; | libration selenographic longitude (**beta**)
-`topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth (**beta**)
-`topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth (**beta**)
-`topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to the celestial sphere and the celestial meridian (**beta**)
+`libration_lat` | &mdash; | libration selenographic latitude
+`libration_lon` | &mdash; | libration selenographic longitude
+`topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth
+`topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth
+`topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to the celestial sphere and the celestial meridian
 
 ### Maps
 

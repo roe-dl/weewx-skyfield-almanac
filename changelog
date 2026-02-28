@@ -39,3 +39,5 @@
 * function `moonMonthSpan()`
 * observation type `lunarTime` as Moon hour angle
 * lunar nodes (astronomical)
+0.6
+* geocentric and topocentric ecliptic coordinates

@@ -425,6 +425,14 @@ WeeWX datatype | Pure float result | Meaning
 `hour angle`   | `ha`              | topocentric hour angle
 `ha_declination` | `ha_dec`        | declination in reference to the coordinate system of the hour angle
 `ha_distance`  | `ha_dist`         | distance in referenc to the coordinate system of the hour angle
+`geo_ecliptic` | &mdash; | apparent geocentric coordinates as a dict of ValueHelper containing `latitude`, `longitude`, and `distance`
+`geo_ecliptic.latitude` | &mdash; | apparent geocentric ecliptic latitude
+`geo_ecliptic.longitude` | &mdash; | apparent geocentric ecliptic longitude
+`geo_ecliptic.distance` | &mdash; | apparent geocentric excliptic distance
+`topo_ecliptic` | &mdash; | apparent topocentric coordinates as a dict of ValueHelper containing `latitude`, `longitude`, and `distance`
+`topo_ecliptic.latitude` | &mdash; | apparent topocentric ecliptic latitude
+`topo_ecliptic.longitude` | &mdash; | apparent topocentric ecliptic longitude
+`topo_ecliptic.distance` | &mdash; | apparent topocentric ecliptic distance
 `day_max_altitude` | `day_max_alt` | maximum altitude of the day
 `day_max_alt_time` | &mdash;       | timestamp of the maximum altitude of the day
 `moon_tilt` | &mdash; | crescent moon tilt angle (0 = illuminated side to the right on northern hemisphere, π = illuminated side to the left on northern hemisphere <br /><img src="moontilt.png" width="200px" alt="definition of moon tilt angle" />
@@ -434,11 +442,11 @@ WeeWX datatype | Pure float result | Meaning
 &mdash; | `mercury_fullness` | percentage of Mercury that is illuminated
 &mdash; | `constellation` | name of the constellation the actual position of the body is in; in local language if available, otherwise in latin
 &mdash; | `constellation_abbr` | abbrevation of the constellation the actual position of the body is in
-`libration_lat` | &mdash; | libration selenographic latitude (**beta**)
-`libration_lon` | &mdash; | libration selenographic longitude (**beta**)
-`topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth (**beta**)
-`topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth (**beta**)
-`topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to the celestial sphere and the celestial meridian (**beta**) 0° if the axis is vertically oriented in the sky. Especially useful for the Moon.
+`libration_lat` | &mdash; | libration selenographic latitude
+`libration_lon` | &mdash; | libration selenographic longitude
+`topo_libration_lat` | &mdash; | libration selenographic latitude in reference to the observer on Earth
+`topo_libration_lon` | &mdash; | libration seleonographic longitude in reference to the observer on Earth
+`topo_coordinate_axis` | &mdash; | angle between the projection of the body's coordinate axis to the celestial sphere and the celestial meridian. 0° if the axis is vertically oriented in the sky. Especially useful for the Moon.
 
 And these attributes are supported by both core WeeWX using PyEphem and
 this extension using Skyfield:

@@ -71,7 +71,7 @@
     
 """
 
-VERSION = "0.5"
+VERSION = "0.6"
 
 # IERS timescale file as hardcoded in Skyfield
 TIMESCALE_FILE = 'finals2000A.all'
@@ -1132,7 +1132,8 @@ class SkyfieldAlmanacBinder:
                     'sublat','sublong','sublatitude','sublongitude',
                     'elevation','size','radius','radius_size',
                     'constellation','constellation_abbr',
-                    'libration_lat','libration_lon'}:
+                    'libration_lat','libration_lon',
+                    'geo_ecliptic'}:
             t = timestamp_to_skyfield_time(self.almanac.time_ts)
             body = _get_body(self.heavenly_body)
             if attr in {'libration_lat','libration_lon'}:
@@ -1158,7 +1159,10 @@ class SkyfieldAlmanacBinder:
                 astrometric = body.at(t)
             else:
                 astrometric = ephemerides[EARTH].at(t).observe(body)
-                if attr in {'geo_ra','geo_dec','geo_dist','g_ra','g_dec','g_dist','elong','elongation'}:
+                if attr in {'geo_ra','geo_dec','geo_dist',
+                            'g_ra','g_dec','g_dist',
+                            'elong','elongation',
+                            'geo_ecliptic'}:
                     astrometric = astrometric.apparent()
             if attr in {'elong','elongation'}:
                 try:
@@ -1199,6 +1203,10 @@ class SkyfieldAlmanacBinder:
                     vt = ValueTuple(point.latitude.radians,'radian','group_angle')
                 elif attr=='sublongitude':
                     vt = ValueTuple(point.longitude.degrees,'degree_compass','group_direction')
+            elif attr=='geo_ecliptic':
+                lat, lon, dist = astrometric.frame_latlon(ecliptic_frame)
+                return self._get_latlon_valuehelper(lat.radians,lon.degrees,dist.km,
+                    context='month' if self.heavenly_body==EARTHMOON else 'ephem_year')
             else:
                 ra, dec, distance = astrometric.radec(epoch='date')
                 if attr in {'a_ra','g_ra'}:
@@ -1355,6 +1363,10 @@ class SkyfieldAlmanacBinder:
                     else:
                         vt = None
                     return self._get_valuehelper(vt, context="ephem_day")
+            if attr =='topo_ecliptic':
+                lat, lon, dist = position.frame_latlon(ecliptic_frame)
+                return self._get_latlon_valuehelper(lat.radians, lon.degrees, dist.km,
+                    context='month' if self.heavenly_body==EARTHMOON else 'ephem_year')
             # `attr` is not provided by this extension. So raise an exception.
             raise AttributeError("%s.%s" % (self.heavenly_body,attr))
 
@@ -1481,6 +1493,14 @@ class SkyfieldAlmanacBinder:
                            context=context,
                            formatter=self.almanac.formatter,
                            converter=self.almanac.converter)
+    
+    def _get_latlon_valuehelper(self, lat, lon, dist, context='current'):
+        """ return dict of polar coordinates """
+        return {
+            'latitude':self._get_valuehelper(ValueTuple(lat,'radian','group_angle'),context=context),
+            'longitude':self._get_valuehelper(ValueTuple(lon,'degree_compass','group_direction'),context=context),
+            'distance':self._get_valuehelper(ValueTuple(dist,'km','group_distance'),context=context)
+        }
     
     def genVisibleTimespans(self, context=None, timespan=None, archive=None):
         """ generator function returning uptimes of body
