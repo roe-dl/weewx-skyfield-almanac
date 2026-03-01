@@ -488,7 +488,9 @@ as a planet. In case of `topo_libration.latitude` and
 `topo_libration.longitude` 
 it is in respect to the observer's position. Libration is not only
 defined for the Moon but for all heavenly bodies that are in tidal
-locking. Libration calculation is still beta code.
+locking.
+If you passed a list of timestamps to `almanac_time`, you can use an index
+here like `libration[5].latitude`.
 
 Try
 

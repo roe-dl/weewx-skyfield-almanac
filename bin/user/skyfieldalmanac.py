@@ -277,6 +277,16 @@ def skyfield_time_to_djd(ti):
 def skyfield_time_to_timestamp(ti):
     return (ti.ut1-ti.dut1/DAY_S-2440587.5)*DAY_S
 
+def numpy_to_weewx(vt):
+    # If the value of the ValueTuple is a numpy array, convert it into
+    # a Python list
+    if isinstance(vt[0],numpy.ndarray):
+        if vt[0].ndim:
+            vt = ValueTuple(list(vt[0]),vt[1],vt[2])
+        else:
+            vt = ValueTuple(vt[0].item(),vt[1],vt[2])
+    return vt
+
 def hip_to_starname(hip, default=None):
     """ convert Hipparcos catalogue number to the name of the star """
     global starnames
@@ -1145,11 +1155,15 @@ class SkyfieldAlmanacBinder:
                     raise ValueError('no reference frame for %s to calculate libraton' % self.heavenly_body)
                 if self.heavenly_body==EARTHMOON:
                     reference = ephemerides[EARTH]
+                    ref_name = 'geocentric'
                 elif self.heavenly_body=='mercury':
                     reference = ephemerides[SUN]
+                    ref_name = 'heliocentric'
                 p = (reference-body).at(t)
                 lat, lon, dist = p.frame_latlon(frames[self.heavenly_body])
                 return self._get_latlon_valuehelper(
+                    "%s' equator" % self.heavenly_body.capitalize(),
+                    ref_name,
                     lat.radians,
                     (lon.degrees+180.0)%360.0-180.0,
                     dist.km,
@@ -1205,8 +1219,11 @@ class SkyfieldAlmanacBinder:
                     vt = ValueTuple(point.longitude.degrees,'degree_compass','group_direction')
             elif attr=='geo_ecliptic':
                 lat, lon, dist = astrometric.frame_latlon(ecliptic_frame)
-                return self._get_latlon_valuehelper(lat.radians,lon.degrees,dist.km,
-                    context='month' if self.heavenly_body==EARTHMOON else 'ephem_year')
+                return self._get_latlon_valuehelper(
+                    'ecliptic','geocentric',
+                    lat.radians,lon.degrees,dist.km,
+                    context='month' if self.heavenly_body==EARTHMOON else 'ephem_year'
+                )
             else:
                 ra, dec, distance = astrometric.radec(epoch='date')
                 if attr in {'a_ra','g_ra'}:
@@ -1269,6 +1286,8 @@ class SkyfieldAlmanacBinder:
                 p = (observer-body).at(ti)
                 lat, lon, dist = p.frame_latlon(frames[self.heavenly_body])
                 return self._get_latlon_valuehelper(
+                    "%s's equator" % self.heavenly_body.capitalize(),
+                    "topocentric",
                     lat.radians,
                     (lon.degrees+180.0)%360.0-180.0,
                     dist.km,
@@ -1366,7 +1385,9 @@ class SkyfieldAlmanacBinder:
                     return self._get_valuehelper(vt, context="ephem_day")
             if attr =='topo_ecliptic':
                 lat, lon, dist = position.frame_latlon(ecliptic_frame)
-                return self._get_latlon_valuehelper(lat.radians, lon.degrees, dist.km,
+                return self._get_latlon_valuehelper(
+                    "ecliptic","topocentric",
+                    lat.radians, lon.degrees, dist.km,
                     context='month' if self.heavenly_body==EARTHMOON else 'ephem_year')
             # `attr` is not provided by this extension. So raise an exception.
             raise AttributeError("%s.%s" % (self.heavenly_body,attr))
@@ -1484,24 +1505,25 @@ class SkyfieldAlmanacBinder:
         """
         # If the value of the ValueTuple is a numpy array, convert it into
         # a Python list
-        if isinstance(vt[0],numpy.ndarray):
-            if vt[0].ndim:
-                vt = ValueTuple(list(vt[0]),vt[1],vt[2])
-            else:
-                vt = ValueTuple(vt[0].item(),vt[1],vt[2])
+        vt = numpy_to_weewx(vt)
         # Create a ValueHelper an return it.
         return ValueHelper(vt,
                            context=context,
                            formatter=self.almanac.formatter,
                            converter=self.almanac.converter)
     
-    def _get_latlon_valuehelper(self, lat, lon, dist, context='current'):
+    def _get_latlon_valuehelper(self, baseplane, observer, lat, lon, dist, context='current'):
         """ return dict of polar coordinates """
-        return {
-            'latitude':self._get_valuehelper(ValueTuple(lat,'radian','group_angle'),context=context),
-            'longitude':self._get_valuehelper(ValueTuple(lon,'degree_compass','group_direction'),context=context),
-            'distance':self._get_valuehelper(ValueTuple(dist,'km','group_distance'),context=context)
-        }
+        return PolarPoint(
+            baseplane, observer, {
+                'latitude':numpy_to_weewx(ValueTuple(lat,'radian','group_angle')),
+                'longitude':numpy_to_weewx(ValueTuple(lon,'degree_compass','group_direction')),
+                'distance':numpy_to_weewx(ValueTuple(dist,'km','group_distance'))
+            },
+            context=context,
+            formatter=self.almanac.formatter,
+            converter=self.almanac.converter
+        )
     
     def genVisibleTimespans(self, context=None, timespan=None, archive=None):
         """ generator function returning uptimes of body
@@ -1554,6 +1576,74 @@ class SkyfieldAlmanacBinder:
         for rising, yrising, setting, ysetting in zip(tri,yri,tse,yse):
             if yrising and ysetting:
                 yield weeutil.weeutil.TimeSpan(rising,setting)
+
+
+class PolarPoint:
+    """ location in space """
+
+    def __init__(self, baseplane, observer, values, context='current', formatter=Formatter(), converter=None):
+        """ location in sky
+        
+            Args:
+                baseplane(str): baseplane of the coordinate system
+                observer(str): observer's location
+                values(dict of ValueHelper): coordinate values
+                context(str): time context
+                formatter(Formatter): formatter
+                converter: converter
+            
+            possible values for observer:
+            'topocentric' (on Earth's surface), 'geocentric', 'heliocentric'
+        """
+        self.baseplane = baseplane
+        self.observer = observer
+        self.values = values
+        self.context = context
+        self.formatter = formatter
+        self.converter = converter
+        self.separator = ' '
+    
+    def __getattr__(self, attr):
+        # Don't try any attributes that start with a double underscore, or any of these
+        # special names: they are used by the Python language:
+        if attr.startswith('__') or attr in ['mro', 'im_func', 'func_code']:
+            raise AttributeError(attr)
+
+        # If `attr` is the name of one of the coordinates, return it.
+        if attr in self.values:
+            return ValueHelper(self.values[attr],context=self.context,formatter=self.formatter,converter=self.converter)
+
+        return super(PolarPoint,self).__getattr__(attr)
+
+    def __len__(self):
+        try:
+            return min([len(i[0]) for _, i in self.values.items()])
+        except TypeError:
+            raise TypeError("object of type '%s' has no len()" % self.__class__.__name__)
+        
+    def __str__(self):
+        # If it is a list of locations, print the locations one after the other.
+        try:
+            values = [str(self[i]) for i in range(len(self))]
+            return ','.join(values)
+        except TypeError:
+            pass
+        # If it is a single loctation, print it.
+        return self.separator.join([str(ValueHelper(i,context=self.context,formatter=self.formatter,converter=self.converter)) for _, i in self.values.items()])
+
+    def __getitem__(self, idx):
+        """ get an element out of a list of locations """
+        # It seams that CheetahGenerator tries to pass an attribute as an
+        # index first. That is generally no problem as list classes have
+        # a `__getitem__` method only. So `TypeError` ist raised, if 
+        # it is not a list class. In contrary the standard Python way
+        # is to not call `__getitem__` in case of dot notation.
+        if isinstance(idx, int):
+            values = {
+                nm:ValueTuple(val[0][idx],val[1],val[2]
+            ) for nm, val in self.values.items()}
+            return PolarPoint(self.baseplane,self.observer,values,context=self.context,formatter=self.formatter,converter=self.converter)
+        raise TypeError('index has to be int')
 
 
 class SkyfieldFormatter(weewx.units.Formatter):
