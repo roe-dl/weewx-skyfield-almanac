@@ -43,3 +43,6 @@
 * geocentric and topocentric ecliptic coordinates
 * changed libration attributes
 * class `PolarPoint`
+* remove SkyfieldFormatter required for WeeWX 5.2
+* angles in degrees, minutes, seconds
+* switch off `interpolation` when reading configuration files

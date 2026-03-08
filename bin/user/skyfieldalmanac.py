@@ -190,10 +190,6 @@ satcatalogues = set()
 subalmanacs = [] # extensions to the SkyfieldAlmanacBinder
 frames = dict()
 
-# Unit group and unit used for true solar time and local mean time
-for _, unitgroup in weewx.units.std_groups.items():
-    unitgroup.setdefault('group_localtime','local_djd')
-
 # Astronomical units
 weewx.units.conversionDict['meter']['light_year'] = lambda x:x/9460730472580800.0
 weewx.units.conversionDict['km']['light_year'] = lambda x:x/9460730472580.8
@@ -210,6 +206,15 @@ weewx.defaults.defaults['Units']['StringFormats'].setdefault('AU',"%.0f")
 weewx.defaults.defaults['Units']['Labels'].setdefault('AU',u" AU")
 weewx.defaults.defaults['Units']['StringFormats'].setdefault('gigameter',"%.1f")
 weewx.defaults.defaults['Units']['Labels'].setdefault('gigameter',u" × 10<sup>6</sup> km")
+
+# helper conversion to display angles in degrees, minutes, seconds using `long_form()`
+# Note: This is a workaround. Primarily `second` is a unit of time. You cannot
+#       convert an angle to a time. But as `long_form()` converts the value
+#       to the unit `second` regardless of its type, we have to do it that way.
+weewx.units.conversionDict.setdefault('degree_compass',dict())
+weewx.units.conversionDict['degree_compass'].setdefault('second',lambda x:x*3600.0)
+weewx.units.conversionDict['degree_angle'].setdefault('second',lambda x:x*3600.0)
+weewx.units.conversionDict['radian'].setdefault('second',lambda x:weewx.units.conversionDict['radian']['degree_angle'](x)*3600.0)
 
 # Default values in [Almanac] section
 weewx.defaults.defaults['Almanac'].setdefault('planet_names',[i.capitalize() for i in PLANETS])
@@ -233,12 +238,12 @@ def logerr(msg):
 
 def _get_config(config_dict):
     """ get almanac configuration """
-    conf_dict = config_dict.get('Almanac',configobj.ConfigObj()).get('Skyfield',configobj.ConfigObj())
+    conf_dict = config_dict.get('Almanac',configobj.ConfigObj(interpolation=False)).get('Skyfield',configobj.ConfigObj(interpolation=False))
     alm_conf_dict = weeutil.config.accumulateLeaves(conf_dict)
     alm_conf_dict['enable'] = weeutil.weeutil.to_bool(conf_dict.get('enable',True))
     alm_conf_dict['log_success'] = weeutil.weeutil.to_bool(alm_conf_dict.get('log_success',True))
     alm_conf_dict['log_failure'] = weeutil.weeutil.to_bool(alm_conf_dict.get('log_failure',True))
-    alm_conf_dict['EarthSatellites'] = conf_dict.get('EarthSatellites',configobj.ConfigObj())
+    alm_conf_dict['EarthSatellites'] = conf_dict.get('EarthSatellites',configobj.ConfigObj(interpolation=False))
     return alm_conf_dict
 
 def timestamp_to_skyfield_time(timestamp, offset=0):
@@ -275,6 +280,7 @@ def skyfield_time_to_djd(ti):
     return ti.ut1-ti.dut1/DAY_S-2415020.0
 
 def skyfield_time_to_timestamp(ti):
+    """ convert Skyfield timestamp to Unix timestamp """
     return (ti.ut1-ti.dut1/DAY_S-2440587.5)*DAY_S
 
 def numpy_to_weewx(vt):
@@ -903,15 +909,9 @@ class SkyfieldAlmanacType(AlmanacType):
             # Julian Day (not Julian Date) + hour angle, converted
             # to local solar Dublin Julian Date
             vt = ValueTuple(ti+ha-2415020.0,'local_djd','group_localtime')
-            formatter = SkyfieldFormatter(
-                unit_label_dict=almanac_obj.formatter.unit_label_dict,
-                time_format_dict=almanac_obj.formatter.time_format_dict,
-                ordinate_names=almanac_obj.formatter.ordinate_names,
-                deltatime_format_dict=almanac_obj.formatter.deltatime_format_dict
-            )
             return ValueHelper(vt,
                                 context="day",
-                                formatter=formatter,
+                                formatter=almanac_obj.formatter,
                                 converter=almanac_obj.converter)
         elif attr in {'equation_of_time','legacy_equation_of_time'}:
             # equation of time
@@ -1646,29 +1646,6 @@ class PolarPoint:
         raise TypeError('index has to be int')
 
 
-class SkyfieldFormatter(weewx.units.Formatter):
-    """ special formatter including solar time """
-
-    def _to_string(self, val_t, context='current', addLabel=True,
-                   useThisFormat=None, None_string=None,
-                   localize=True):
-        if val_t is not None and val_t[0] is not None:
-            if val_t[1]=='local_djd':
-                ti = time.gmtime((val_t[0]-25567.5)*DAY_S)
-                if useThisFormat is None:
-                    val_str = time.strftime(self.time_format_dict.get(context, "%d-%b-%Y %H:%M"),
-                                            ti)
-                else:
-                    val_str = time.strftime(useThisFormat, ti)
-                return val_str
-        return super(SkyfieldFormatter,self)._to_string(val_t,
-                                                context=context,
-                                                addLabel=addLabel,
-                                                useThisFormat=useThisFormat,
-                                                None_string=None_string,
-                                                localize=localize)
-
-
 class SkyfieldMaintenanceThread(threading.Thread):
     """ Thread to download and update ephemerides and timescales 
     
@@ -2149,7 +2126,7 @@ class SkyfieldService(StdService):
         global almanacs
         super(SkyfieldService,self).__init__(engine, config_dict)
         # directory to save ephemeris and IERS files
-        sqlite_root = config_dict.get('DatabaseTypes',configobj.ConfigObj()).get('SQLite',configobj.ConfigObj()).get('SQLITE_ROOT','.')
+        sqlite_root = config_dict.get('DatabaseTypes',configobj.ConfigObj(interpolation=False)).get('SQLite',configobj.ConfigObj(interpolation=False)).get('SQLITE_ROOT','.')
         path = os.path.join(
             config_dict.get('WEEWX_ROOT','.'),
             sqlite_root,

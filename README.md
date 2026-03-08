@@ -51,7 +51,7 @@ PyEphem calculated values by Skyfield calculated values in existing skins.
 
 ## Prerequisites
 
-WeeWX from version 5.2 on ist required and 
+WeeWX from version 5.3 on ist required (use version 0.5 for WeeWX 5.2) and 
 Skyfield from version 1.47 on is recommended.
 
 Install Skyfield and NumPy. If you want to load star data you additionally
@@ -700,6 +700,16 @@ is used for other angles with other origins within WeeWX, too. They only have
 in common that they are measured within the base plane of the respective 
 coordinate system.
 
+If you want to display an angle in degrees, minutes, and seconds instead
+of a decimal value, you can use this workaround, for example:
+
+```
+$almanac.sun.azimuth.long_form('%(hour)d°%(minute)02d′%(second)02d″')
+$almanac.sun.altitude.long_form('%(hour)d°%(minute)02d′%(second)02d″')
+```
+
+Please note, that this way does not preserve the sign.
+
 #### Distances
 
 In Astronomy huge distances are measured. To express them astronomers use
@@ -732,6 +742,8 @@ data is required, too. The following keys are used:
 * `mercury_phases`: The same as moon phases but for Mercury.
 * `planet_names`: List of the names of the planets of the solar system,
   sorted by their distance to the Sun, including Earth and Pluto.
+* `sun`: localized name of the Sun
+* `moon`: localized name of the Moon
 
 Put those keys into the `Almanac` section of the appropriate language
 file of your skin.
@@ -740,6 +752,12 @@ Please note, that there is no difference in the names of the phases of
 Moon, Venus, and Mercury in English, but in other languages.
 
 You can also use those keys as parameters to the `$almanac` tag.
+
+If you want to see localized names of the constallations, put a sub-section
+named `[[Constellations]]` into the `[Almanac]` section. For each
+constellation put a line
+`abbrevation of the constellation = localized name of the constellation`
+there.
 
 ### How to check whether this extension is available?
 

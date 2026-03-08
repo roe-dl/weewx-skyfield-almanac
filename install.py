@@ -128,7 +128,7 @@ class SkyfieldInstaller(ExtensionInstaller):
         """ Update language definition files """
         # get the original language file
         try:
-            config = configobj.ConfigObj(dest_fn,encoding='utf-8')
+            config = configobj.ConfigObj(dest_fn,encoding='utf-8',interpolation=False)
         except configobj.ConfigObjError as e:
             engine.printer.out('cannot merge to %s: %s %s' % (dest_fn,e.__class__.__name__,e))
             return
@@ -139,7 +139,7 @@ class SkyfieldInstaller(ExtensionInstaller):
             engine.printer.out('cannot merge to %s: problematic key "%s"' % (dest_fn,key))
             return
         # get the Skyfield additions
-        to_be_merged = configobj.ConfigObj(src_fn,encoding='utf-8')
+        to_be_merged = configobj.ConfigObj(src_fn,encoding='utf-8',interpolation=False)
         # merge the additions to the localization config
         if 'Almanac' in config:
             engine.printer.out('merging %s to %s' % (os.path.basename(src_fn),dest_fn))
