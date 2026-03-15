@@ -723,17 +723,25 @@ Unit | Unit label | Name              | Unit group       | Definition           
 
 ### Localization
 
-To adapt skins to local languages, WeeWX uses language files. These files
-include an `[Almanac]` section that contains at least one key called 
-`moon_phases`. This WeeWX almanac extension also uses the value of that key 
-to name the moon phases.
-
-The same applies to compass directions which come from `directions` in
-section `[Units]`, sub-section `[[Ordinates]]`.
+To adapt skins to local languages, WeeWX uses language files. They reside
+in the `lang` sub-directory of the skin. This WeeWX almanac extension gets 
+localized names from there, too.
 
 If there are no language files in your skin, look into `skin.conf` for
-those sections and keys. If even there they are missing, they could be
-found within `weewx.conf` in section `StdReport`.
+the appropriate sections and keys. If even there they are missing, they 
+could be found within `weewx.conf` in section `StdReport`.
+
+#### Compass directions
+
+According to the standards of WeeWX compass directions come from the key
+`directions` in section `[Units]`, sub-section `[[Ordinates]]`.
+This WeeWX almanac extension uses that setting, too.
+
+#### Names of heavenly bodies and phases
+
+The language files include an `[Almanac]` section that contains at least one 
+key called `moon_phases`. This WeeWX almanac extension also uses the value of 
+that key to name the moon phases.
 
 As this extension provides additional attributes, additional localization
 data is required, too. The following keys are used:
@@ -753,11 +761,72 @@ Moon, Venus, and Mercury in English, but in other languages.
 
 You can also use those keys as parameters to the `$almanac` tag.
 
+For example in Norsk this would look like this:
+
+```
+[Almanac]
+
+    # The labels to be used for the phases of the moon:
+    moon_phases = Nymåne, Voksende sigd, Første kvarter, Voksende måne, Fullmåne, Avtakende måne, Siste kvarter, Avtakende sigd
+
+    # Phases of the inner planets:
+    mercury_phases = Ny, Voksende sigd, Første kvarter, Voksende, Full, Avtakende, Siste kvarter, Avtakende sigd
+    venus_phases = Ny, Voksende sigd, Første kvarter, Voksende, Full, Avtakende, Siste kvarter, Avtakende sigd
+
+    # Names of the planets:
+    planet_names = Merkur, Venus, Jorden, Mars, Jupiter, Saturn, Uranus, Neptun, Pluto
+
+    # Sun and Moon
+    sun = Sol
+    moon = Måne
+```
+
+#### Names of constellations
+
 If you want to see localized names of the constallations, put a sub-section
 named `[[Constellations]]` into the `[Almanac]` section. For each
 constellation put a line
 `abbrevation of the constellation = localized name of the constellation`
-there.
+there. In total the IAU defined 88 constellations. So that is too much to
+present an example here. Look at [lang](./lang) for that.
+
+If you don't provide local names for the constellations the are named
+in Latin.
+
+#### Names of timezones
+
+The additional
+[weewx-skymap-almanac extension](https://github.com/roe-dl/weewx-skymap-almanac)
+refers to timezones in some diagrams. To display the local names of those
+timezones you need sub-section `[[TZ]]` in section `[Almanac]`. There the
+following keys are required:
+
+* `name(LAT)`: local apparent solar time
+* `name(LAST)`: local apparent sidereal time
+* `name(LMT)`: local mean solar time
+* `name(LMST)`: local mean sidereal time
+* The English abbrevation of your timezone as key and the local abbreviation
+  of that timezone as value
+* `name(XXX)` where `XXX` is the English abbreviation of your timezone:
+  The value to that key is the full name of the timezone.
+
+For example, for the Czech language the settings look like this:
+
+```
+[Almanac]
+
+    ...
+
+    # Názvy a zkratky časových pásem a časových údajů
+    [[TZ]]
+
+        "name(LAT)" = sluneční čas   # pravý sluneční čas
+        "name(LMT)" = střední sluneční čas
+        "name(LAST)" = hvězdný čas
+        "name(LMST)" = střední hvězdný čas
+        CET = SEČ
+        "name(CET)" = středoevropský čas
+```
 
 ### How to check whether this extension is available?
 

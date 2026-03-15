@@ -46,3 +46,5 @@
 * remove SkyfieldFormatter required for WeeWX 5.2
 * angles in degrees, minutes, seconds
 * switch off `interpolation` when reading configuration files
+* localized name of Sun and Moon in attribute `name`
+* Spanish localization file (words according to Wikipedia)

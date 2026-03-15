@@ -1055,6 +1055,8 @@ class SkyfieldAlmanacBinder:
             The `name` attribute is supported by the PyEphem almanac, too, but
             it is not documented in the customization guide of WeeWX.
         """
+        if self.heavenly_body in {'sun','moon'}:
+            return self.almanac.__dict__.get('texts',dict()).get(self.heavenly_body,self.heavenly_body.capitalize())
         planet_names = self.almanac.__dict__.get('planet_names',self.almanac.__dict__.get('texts',dict()).get('planet_names'))
         if planet_names:
             # If there is a list of the planets' names in local language

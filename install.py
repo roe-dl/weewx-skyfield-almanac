@@ -95,7 +95,7 @@ class SkyfieldInstaller(ExtensionInstaller):
                             # 'cs', but in WeeWX it is 'cz'. Both are tried.
                             if fn=='cs.conf':
                                 if os.path.isfile(dest_fn):
-                                    self._update_lang_file(engine, src_fn, dest_fn)
+                                    self._update_lang_file(engine, skin_pth, src_fn, dest_fn)
                                 dest_fn = os.path.join(lang_dir,'cz.conf')
                             # check if the target file exists and update it
                             if os.path.isfile(dest_fn):
