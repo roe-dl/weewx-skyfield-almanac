@@ -144,9 +144,14 @@ class SkyfieldInstaller(ExtensionInstaller):
         if 'Almanac' in config:
             engine.printer.out('merging %s to %s' % (os.path.basename(src_fn),dest_fn))
             conditional_merge(config['Almanac'],to_be_merged['Almanac'])
-            if ('Astronomical' in config.get('Texts',dict()) and 
-                'Astronomical' in to_be_merged.get('Texts',dict())):
+            try:
                 conditional_merge(config['Texts']['Astronomical'],to_be_merged['Texts']['Astronomical'])
+            except LookupError:
+                pass
+            try:
+                conditional_merge(config['Labels']['Generic'],to_be_merged['Labels']['Generic'])
+            except LookupError:
+                pass
             # special translations for specific skins
             if skin in to_be_merged:
                 conditional_merge(config,to_be_merged[skin])
