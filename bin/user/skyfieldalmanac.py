@@ -1296,16 +1296,30 @@ class SkyfieldAlmanacBinder:
                     context='month'
                 )
             if attr=='topo_coordinate_axis':
+                # Angle between the projection of the body's coordinate axis
+                # to the celestial sphere and the celestial meridian. 0° if
+                # the axis is vertically oriented in the sky. Especially useful
+                # for the Moon.
                 axis = get_axis(ti, observer, self.heavenly_body)
                 vt = ValueTuple(axis.radians,'radian','group_angle')
                 return self._get_valuehelper(vt, context="ephem_day")
             if isinstance(body,EarthSatellite):
+                # Earth satellite
                 station = wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)
                 position = (body-station).at(ti)
             else:
+                # other heavenly body like Sun, Moon, planets, and stars
                 position = observer.at(ti).observe(body).apparent()
             if attr=='parallactic_angle':
+                # Parallactic angle
+                # Note that this is also covered by the PyEphem based 
+                # almanac, but not documented there.
                 # https://github.com/skyfielders/python-skyfield/issues/819#issuecomment-2001972677
+                # Definition:
+                # https://en.wikipedia.org/wiki/Parallactic_angle
+                # The german version of that article includes an illustrating
+                # picture:
+                # https://de.wikipedia.org/wiki/Parallaktischer_Winkel
                 station = wgs84.latlon(self.almanac.lat,self.almanac.lon,elevation_m=self.almanac.altitude)
                 north_pole = position_of_radec(
                     ra_hours=0.0, dec_degrees=90.0, epoch=ti,
@@ -1330,7 +1344,7 @@ class SkyfieldAlmanacBinder:
                 a = moon_tilt(alt_moon.radians,alt_sun.radians,az_moon.radians-az_sun.radians)
                 vt = ValueTuple(a,'radian','group_angle')
                 return self._get_valuehelper(vt, context="ephem_day")
-            if attr in {'az','alt','alt_dist','azimuth','altitude','alt_distance'}:
+            if attr in {'az','alt','alt_dist','azimuth','altitude','alt_distance','altaz'}:
                 alt, az, distance = position.altaz(temperature_C=self.almanac.temperature,pressure_mbar=self.almanac.pressure if self.almanac.pressure else 'standard')
                 if attr=='az':
                     return az.degrees
@@ -1338,6 +1352,17 @@ class SkyfieldAlmanacBinder:
                     return alt.degrees
                 elif attr=='alt_dist':
                     return distance.km
+                elif attr=='altaz':
+                    return PolarPoint(
+                        "horizontal", "topocentric", {
+                            'altitude':numpy_to_weewx(ValueTuple(alt.radians,'radian','group_angle')),
+                            'azimuth':numpy_to_weewx(ValueTuple(az.degrees,'degree_compass','group_direction')),
+                            'distance':numpy_to_weewx(ValueTuple(distance.km,'km','group_distance'))
+                        },
+                        context="ephem_day",
+                        formatter=self.almanac.formatter,
+                        converter=self.almanac.converter
+                    )
                 else:
                     if attr=='azimuth':
                         vt = ValueTuple(az.degrees,'degree_compass','group_direction')
@@ -1346,7 +1371,9 @@ class SkyfieldAlmanacBinder:
                     elif attr=='alt_distance':
                         vt = ValueTuple(distance.km,'km','group_distance')
                     return self._get_valuehelper(vt, context="ephem_day")
-            if attr in {'ra','dec','dist','topo_ra','topo_dec','topo_dist'}:
+            if attr in {'ra','dec','dist','topo_ra','topo_dec','topo_dist','topo_radec'}:
+                # Coordinates referenced to the dynamical system defined by
+                # the Earth's true equator and equinox.
                 ra, dec, distance = position.radec('date')
                 if attr=='ra':
                     return ra._degrees
@@ -1354,6 +1381,17 @@ class SkyfieldAlmanacBinder:
                     return dec.degrees
                 elif attr=='dist':
                     return distance.km
+                elif attr=='topo_radec':
+                    return PolarPoint(
+                        "equatorial", "topocentric", {
+                            'declination':numpy_to_weewx(ValueTuple(dec.radians,'radian','group_angle')),
+                            'right_ascension':numpy_to_weewx(ValueTuple(ra._degrees,'degree_compass','group_direction')),
+                            'distance':numpy_to_weewx(ValueTuple(distance.km,'km','group_distance'))
+                        },
+                        context="ephem_day",
+                        formatter=self.almanac.formatter,
+                        converter=self.almanac.converter
+                    )
                 else:
                     if attr=='topo_ra':
                         vt = ValueTuple(ra._degrees,'degree_compass','group_direction')
@@ -1363,10 +1401,12 @@ class SkyfieldAlmanacBinder:
                         vt = ValueTuple(distance.km,'km','group_distance')
                     return self._get_valuehelper(vt, context="ephem_day")
             if attr in {'ha','ha_dec','ha_dist',
-                        'hour_angle','ha_declination','ha_distance'}:
-                # measured from the plane of the Earth's physical geographic
-                # equator. The coordinates are not adjusted for atmospheric
-                # refraction near the horizon.
+                        'hour_angle','ha_declination','ha_distance',
+                        'hadec'}:
+                # Measured from the plane parallel to the Earth's physical 
+                # geographic equator through the observer's location. The 
+                # coordinates are not adjusted for atmospheric refraction 
+                # near the horizon.
                 # https://rhodesmill.org/skyfield/api-position.html#skyfield.positionlib.ICRF.hadec
                 ha, dec, distance = position.hadec()
                 if attr=='ha':
@@ -1375,6 +1415,17 @@ class SkyfieldAlmanacBinder:
                     return dec.degrees
                 elif attr=='ha_dist':
                     return distance.km
+                elif attr=='hadec':
+                    return PolarPoint(
+                        "equatorial", "topocentric", {
+                            'declination':numpy_to_weewx(ValueTuple(dec.radians,'radian','group_angle')),
+                            'hour_angle':numpy_to_weewx(ValueTuple(ha._degrees,'degree_compass','group_direction')),
+                            'distance':numpy_to_weewx(ValueTuple(distance.km,'km','group_distance'))
+                        },
+                        context="ephem_day",
+                        formatter=self.almanac.formatter,
+                        converter=self.almanac.converter
+                    )
                 else:
                     if attr=='hour_angle':
                         vt = ValueTuple(ha._degrees,'degree_compass','group_direction')
@@ -1972,6 +2023,8 @@ class SkyfieldMaintenanceThread(threading.Thread):
                 with load.open(file_name) as f:
                     if format=='json':
                         data = json.load(f)
+                        # `from_omm` was introduced into Skyfield on 2024-06-04
+                        # with version 1.49, released 2024-06-13.
                         x = [EarthSatellite.from_omm(ts, fields) for fields in data]
                     elif format=='tle':
                         x = list(parse_tle_file(f,ts))

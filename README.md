@@ -52,7 +52,8 @@ PyEphem calculated values by Skyfield calculated values in existing skins.
 ## Prerequisites
 
 WeeWX from version 5.3 on ist required (use version 0.5 for WeeWX 5.2) and 
-Skyfield from version 1.47 on is recommended.
+Skyfield from version 1.47 on is recommended. If you want to process
+Earth satellite files not in TLE format, you need at least Skyfield 1.49.
 
 Install Skyfield and NumPy. If you want to load star data you additionally
 need the Pandas module, otherwise you can leave it out.
@@ -420,15 +421,18 @@ WeeWX datatype | Pure float result | Meaning
 ---------------|-------------------|----------------
 `astro_dist`   | `a_dist`          | astrometric geocentric distance
 `geo_dist`     | `g_dist`          | apparent astrometric geocentric distance
-`topo_dist`    | `dist`            | apparent topocentric distance 
+`topo_dist`    | `dist`            | apparent topocentric distance
+`topo_radec`   | &mdash;           | apparant topocentric equatorial coordinates as dict of `right_ascension`, `declination`, and `distance` (This is faster with this extension than calling the values separately.)
 `alt_distance` | `alt_dist`        | distance in reference to the coordinate system of altitude and azimuth
-`hour angle`   | `ha`              | topocentric hour angle
+`altaz`        | &mdash;           | apparent topocentric horizontal coordinates as dict of `altitude`, `azimuth`, `distance` (This is faster with this extension than calling the values separately.)
+`hour_angle`   | `ha`              | topocentric hour angle
 `ha_declination` | `ha_dec`        | declination in reference to the coordinate system of the hour angle
 `ha_distance`  | `ha_dist`         | distance in referenc to the coordinate system of the hour angle
-`geo_ecliptic` | &mdash; | apparent geocentric coordinates as a dict of ValueHelper containing `latitude`, `longitude`, and `distance`
-`geo_ecliptic.latitude` | &mdash; | apparent geocentric ecliptic latitude
+`hadec`        | &mdash;           | apparent topocentric equatorial coordinates as dict `hour_angle`, `declination`, and `distance` (This is faster with this extension than calling the values separately.)
+`geo_ecliptic` | &mdash;           | apparent geocentric coordinates as a dict of ValueHelper containing `latitude`, `longitude`, and `distance`
+`geo_ecliptic.latitude` | &mdash;  | apparent geocentric ecliptic latitude
 `geo_ecliptic.longitude` | &mdash; | apparent geocentric ecliptic longitude
-`geo_ecliptic.distance` | &mdash; | apparent geocentric excliptic distance
+`geo_ecliptic.distance` | &mdash;  | apparent geocentric excliptic distance
 `topo_ecliptic` | &mdash; | apparent topocentric coordinates as a dict of ValueHelper containing `latitude`, `longitude`, and `distance`
 `topo_ecliptic.latitude` | &mdash; | apparent topocentric ecliptic latitude
 `topo_ecliptic.longitude` | &mdash; | apparent topocentric ecliptic longitude
@@ -761,7 +765,7 @@ Moon, Venus, and Mercury in English, but in other languages.
 
 You can also use those keys as parameters to the `$almanac` tag.
 
-For example in Norsk this would look like this:
+For example in Norsk the language file section would look like this:
 
 ```
 [Almanac]
@@ -790,7 +794,7 @@ constellation put a line
 there. In total the IAU defined 88 constellations. So that is too much to
 present an example here. Look at [lang](./lang) for that.
 
-If you don't provide local names for the constellations the are named
+If you don't provide local names for the constellations they are named
 in Latin.
 
 #### Names of timezones
