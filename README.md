@@ -308,6 +308,7 @@ Attribute | Data type | Meaning
 `venus_phase` | str | name of the actual venus phase
 `mercury_index` | int | mercury phase index (0 to 7)
 `mercury_phase` | str | name of the actual mercury phase
+`zodiac_constellations_abbr` | list | list of the zodiac constellations (excluding Ophiuchus)
 
 ### Date and time
 
@@ -1128,6 +1129,8 @@ A: Unfortunately there is no direct way to do so, but there is a workaround.
   (provides the timescale file `finals2000A.all`)
 * [Jet Propulsion Laboratory JPL](https://www.jpl.nasa.gov)
   (provides the ephemeris files)
+* [JPL: SPK files](https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/)
+* [JPL: Get small body SPK files](https://ssd.jpl.nasa.gov/horizons/app.html#/)
 * [Issue #981: PyEphem is deprecated](https://github.com/weewx/weewx/issues/981)
 * [International Terrestrial Reference System ITRS](https://en.wikipedia.org/wiki/International_Terrestrial_Reference_System_and_Frame)
 * [ESA's Hipparcos mission and catalog](https://www.cosmos.esa.int/web/hipparcos/home)

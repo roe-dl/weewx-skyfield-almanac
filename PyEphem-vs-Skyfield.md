@@ -46,6 +46,7 @@ Attribute | Data type | Meaning
 `venus_phase` | str | name of the actual venus phase
 `mercury_index` | int | mercury phase index (0 to 7)
 `mercury_phase` | str | name of the actual mercury phase
+`zodiac_constellations_abbr` | list | list of the zodiac constellations (excluding Ophiuchus)
 
 ### Date and time
 

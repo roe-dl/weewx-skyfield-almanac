@@ -48,3 +48,6 @@
 * switch off `interpolation` when reading configuration files
 * localized name of Sun and Moon in attribute `name`
 * Spanish localization file (words according to Wikipedia)
+* astronomical zodiac constellations list
+* change name to code mapping during initialization
+* process radii of heavenly bodies in PCK files

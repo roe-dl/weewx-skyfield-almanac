@@ -119,6 +119,7 @@ from skyfield.framelib import ecliptic_frame
 from skyfield.nutationlib import iau2000b_radians
 from skyfield.positionlib import position_of_radec
 from skyfield.trigonometry import position_angle_of
+from jplephem.names import target_name_pairs, target_names
 
 try:
     import pandas
@@ -137,9 +138,18 @@ SUN = 'sun'
 EARTH = PLANETS[2]
 EARTHMOON = 'moon'
 
+# Constellations of the zodiac
+# Note: The Sun passes a 13th constellation, Ophiuchus (Oph), which is
+#       traditionally not considered part of the zodiac.
+ZODIAC = ['Psc','Ari','Tau','Gem','Cnc','Leo','Vir','Lib','Sco','Sgr','Cap','Aqr']
+ZODIAC13 = ZODIAC[0:9]+['Oph']+ZODIAC[9:]
+
 # Size of heavenly bodies
-# Note: Unfortunately the SPICE kernel files do not contain information 
-#       about the size of the heavenly bodies, but PyEphem does.
+# Note: The SPICE kernel files do not contain information about the size of 
+#       the heavenly bodies, but there are additional PCK files that do.
+#       They may be available or not, so some values are included here. They
+#       are updated from PCK files if possible.
+# See also https://github.com/skyfielders/python-skyfield/blob/master/skyfield/data/horizons.py
 SIZES = {
     #           equator.r  pole.r    mean.r [all km]
     # https://iopscience.iop.org/article/10.1088/0004-637X/750/2/135
@@ -693,6 +703,8 @@ class SkyfieldAlmanacType(AlmanacType):
                 formatter=almanac_obj.formatter,
                 converter=almanac_obj.converter
             )
+        if attr=='zodiac_constellations_abbr':
+            return ZODIAC
         if ts is None or ephemerides is None:
             raise weewx.UnknownType(attr)
         if attr=='sunrise':
@@ -1835,27 +1847,10 @@ class SkyfieldMaintenanceThread(threading.Thread):
         starids = named_star_dict
         starnames = {hip:name for name, hip in starids.items() }
         return True
-        """
-        try:
-            fn = os.path.dirname(os.path.realpath(__file__))
-            fn = os.path.join(fn,'starnames.dat')
-            with open(fn,'rt') as f:
-                for line in f:
-                    x = line.split('|')
-                    hip = weeutil.weeutil.to_float(x.pop(0))
-                    if x:
-                        starnames[hip] = x[0].strip()
-                        if x[0]: starids[x[0].strip()] = hip
-            loginf("thread '%s': successfully loaded starnames.dat" % self.name)
-            return True
-        except (OSError,TypeError,ValueError) as e:
-            logerr("thread '%s': could not load '%s': %s - %s" % (self.name,fn,e.__class__.__name__,e))
-            return False
-        """
     
     def init_skyfield(self):
         """ download ephemeris data or read them from file """
-        global ts, ephemerides, sun_and_planets, planets_list, planetaryconstants, frames
+        global ts, ephemerides, sun_and_planets, planets_list, planetaryconstants, frames, SIZES
         # instantiate the loader
         load = Loader(self.path,verbose=False)
         # get current time
@@ -1901,18 +1896,35 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     logerr("thread '%s': error downloading ephemeris %s - %s" % (self.name,e.__class__.__name__,e))
         # merge ephemerides
         if ct and self.spk[0] is not None:
+            # Skyfield used to not update the list of names the method 
+            # `names()` returns after extending the `segments` list.
+            # Therefore we build our own code-name dict and loop over
+            # the segments list instead of calling `names().items()`.
+            target_names = dict()
+            for code, name in target_name_pairs:
+                target_names.setdefault(code,name)
+            # Process spice kernel files (SPK files)
             _eph = dict()
             _sem = None
-            for _spk in self.spk:
+            for _spk in reversed(self.spk):
+                logdbg("thread '%s': spice kernel '%s' comments %s" % (self.name,_spk.filename,_spk.spk.comments()))
                 # get the bodies supported by this ephemeris
-                for nr,nm in _spk.names().items():
-                    attr = nm[0].lower()
-                    if attr not in _eph and nr!=0:
-                        _eph[attr] = _spk[nr]
+                # (Each segment contains a vector function connecting a
+                # target to a center. If you retrieve an item from the
+                # SpiceKernel instance, it recursively adds all the segments
+                # until it reaches the solar system barycenter.)
+                for _seg in _spk.segments:
+                    code = _seg.target
+                    name = target_names.get(code)
+                    if name and code:
+                        try:
+                            _eph[name.lower()] = _spk[code]
+                            logdbg("thread '%s': registered ephemeris for %s type %s" % (self.name,name.capitalize(),type(_eph[name.lower()])))
+                        except (ValueError, LookupError) as e:
+                            logerr("thread '%s': %s while trying to get ephemeris for %s: %s" % (self.name,e.__class__.__name__,name.capitalize(),e))
                 # get the ephemeris set that covers sun, earth, and moon
                 # required for seasons and moon phase calculation
-                if (not _sem and 
-                          SUN in _spk and EARTH in _spk and EARTHMOON in _spk):
+                if SUN in _spk and EARTH in _spk and EARTHMOON in _spk:
                     _sem = _spk
             # Get a list of planets available in loaded ephemerides
             _pl = []
@@ -1982,6 +1994,25 @@ class SkyfieldMaintenanceThread(threading.Thread):
                     loginf("thread '%s': successfully created %s reference frame" % (self.name,body.capitalize()))
                 except (NotImplementedError,LookupError,ValueError,TypeError) as e:
                     logerr("thread '%s': %s frame %s - %s" % (self.name,body.capitalize(),e.__class__.__name__,e))
+            # radii
+            # BODYnnn_RADII = [ larger_equatorial_radius,
+            #                   smaller_equatorial_radius,
+            #                   polar_radius ]
+            # https://en.wikipedia.org/wiki/Mean_radius_(astronomy)
+            for i in pc.variables:
+                try:
+                    if i.endswith('_RADII') and i.startswith('BODY'):
+                        no = int(i[4:-6])
+                        nm = target_names[no].lower()
+                        if (nm in ephemerides or 
+                                         ('%s_barycenter' %nm) in ephemerides):
+                            val = pc.variables[i]
+                            mean = round((val[0]*val[1]*val[2])**0.333333333333333333,4)
+                            x = (val[0],val[2],mean)
+                            logdbg('radius %s %s PCK %s mean %s => %s' % (no, nm, val, mean, x))
+                            SIZES[nm] = x
+                except (LookupError, ValueError, TypeError, ArithmeticError):
+                    pass
         # `ephemerides` and `ts` are up to date if they were updated less 
         # than 24 hours ago.
         return self.last_ts_update>now and min(self.last_eph_update)>now
@@ -2460,8 +2491,10 @@ class LiveService(StdService):
         except (LookupError,ArithmeticError,AttributeError,TypeError,ValueError) as e:
             # report the error at most once every 5 minutes
             if self.log_failure and time.time()>=self.last_almanac_error+300:
-                logerr("live almanac error: %s" % e)
+                logerr("live almanac error: %s %s" % (e.__class__.__name__,e))
+                weeutil.logger.log_traceback(log.error, "live almanac ****  ")
                 self.last_almanac_error = time.time()
+        return
     
     def set_current_location(self, latitude_vt, longitude_vt, altitude_vt):
         """ set current location in case of a mobile station 
