@@ -39,7 +39,7 @@
 * function `moonMonthSpan()`
 * observation type `lunarTime` as Moon hour angle
 * lunar nodes (astronomical)
-0.6
+0.6 10may2026
 * geocentric and topocentric ecliptic coordinates
 * changed libration attributes
 * class `PolarPoint`
