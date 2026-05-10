@@ -353,18 +353,18 @@ guide, but calculated using Skyfield. They happen independent of your
 location on Earth at the same instant all over the world. The local time
 differs only. Here is a list of available events:
 
-Previous event | Next event |
----------------|------------|
-`previous_equinox` | `next_equinox`
-`previous_solstice` | `next_solstice`
-`previous_autumnal_equinox` | `next_autumnal_equinox`
-`previous_vernal_equinox` | `next_vernal_equinox`
-`previous_winter_solstice` | `next_winter_solstice`
-`previous_summer_solstice` | `next_summer_solstice`
-`previous_new_moon` | `next_new_moon`
-`previous_first_quarter_moon` | `next_first_quarter_moon`
-`previous_full_moon` | `next_full_moon`
-`previous_last_quarter_moon` | `next_last_quarter_moon`
+Previous event | Next event | Meaning
+---------------|------------|-------------
+`previous_equinox` | `next_equinox` | nearest equinox to the reference time, `$almanac` is bound to
+`previous_solstice` | `next_solstice` | nearest solstice to the referenc time, `$almanac` is bound to
+`previous_autumnal_equinox` | `next_autumnal_equinox` | September equinox
+`previous_vernal_equinox` | `next_vernal_equinox` | March equinox
+`previous_winter_solstice` | `next_winter_solstice` | December solstice
+`previous_summer_solstice` | `next_summer_solstice` | June solstice
+`previous_new_moon` | `next_new_moon` | new moon
+`previous_first_quarter_moon` | `next_first_quarter_moon` | first quarter moon
+`previous_full_moon` | `next_full_moon` | full moon
+`previous_last_quarter_moon` | `next_last_quarter_moon` | last quarter moon
 
 And these events this WeeWX extension provides additionally:
 
@@ -376,6 +376,8 @@ Previous event | Next event | Meaning
 `previous_apogee_moon` | `next_apogee_moon` | apogee of the Moon (when the Moon is farthest from the Earth)
 `previous_ascending_node_moon` | `next_ascending_node_moon` | ascending node of the moon (when the Moon passes the ecliptic)
 `previous_descending_node_moon` | `next_descending_node_moon` | descending node of the Moon (when the Moon passes the ecliptic)
+`previous_northern_standstill_moon` | `next_northern_standstill_moon` | northern lunar standstill (when the declination reaches its monthly local maximum)
+`previous_southern_standstill_moon` | `next_southern_standstill_moon` | southern lunar standstill (when the declination reaches its monthly local minimum)
 `previous_new_venus` | `next_new_venus` | maximum of phase angle; Venus changes from evening to morning side
 `previous_first_quarter_venus` | `next_first_quarter_venus` | waxing 90 degrees of phase angle
 `previous_full_venus` | `next_full_venus` | minimum of phase angle
@@ -1151,3 +1153,4 @@ A: Unfortunately there is no direct way to do so, but there is a workaround.
 * [CelesTrak](https://celestrak.org)
 * [Andrea K. Myers-Beaghton et al.: The moon tilt illusion](https://www.seas.upenn.edu/~amyers/MoonPaperOnline.pdf)
 * [Karlheinz Schott (&dagger;): "Falsche" Mondneigung - Wohin zeigt die Mondsichel?](https://falsche-mondneigung.jimdofree.com/b-geometrische-darstellung-und-berechnung/) (german)
+* [Lunar standstill (Wikipedia)](https://en.wikipedia.org/wiki/Lunar_standstill)

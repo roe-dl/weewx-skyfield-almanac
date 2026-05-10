@@ -254,6 +254,7 @@ def _get_config(config_dict):
     alm_conf_dict['log_success'] = weeutil.weeutil.to_bool(alm_conf_dict.get('log_success',True))
     alm_conf_dict['log_failure'] = weeutil.weeutil.to_bool(alm_conf_dict.get('log_failure',True))
     alm_conf_dict['EarthSatellites'] = conf_dict.get('EarthSatellites',configobj.ConfigObj(interpolation=False))
+    alm_conf_dict['Frames'] = conf_dict.get('Frames',configobj.ConfigObj(interpolation=False))
     return alm_conf_dict
 
 def timestamp_to_skyfield_time(timestamp, offset=0):
@@ -787,7 +788,11 @@ class SkyfieldAlmanacType(AlmanacType):
                       'previous_apogee_moon','next_apogee_moon',
                       'previous_perigee_moon','next_perigee_moon',
                       'previous_new_venus','next_new_venus',
-                      'previous_full_venus','next_full_venus'}:
+                      'previous_full_venus','next_full_venus',
+                      'previous_northern_standstill_moon',
+                      'next_northern_standstill_moon',
+                      'previous_southern_standstill_moon',
+                      'next_southern_standstill_moon'}:
             earth = ephemerides[EARTH]
             if attr.endswith('helion'):
                 # aphelion, perihelion
@@ -808,6 +813,14 @@ class SkyfieldAlmanacType(AlmanacType):
                 moon = ephemerides[EARTHMOON]
                 def func(t):
                     return numpy.round(earth.at(t).observe(moon).apparent().distance().km,1)
+                func.step_days = 7.0
+            elif attr.endswith('standstill_moon'):
+                # lunar standstill ("lunistice")
+                interval = 2592000
+                moon = ephemerides[EARTHMOON]
+                def func(t):
+                    # Apparent place with respect to date
+                    return earth.at(t).observe(moon).apparent().radec('date')[1].degrees
                 func.step_days = 7.0
             elif attr.endswith('_venus'):
                 # phases of the Venus
@@ -830,7 +843,7 @@ class SkyfieldAlmanacType(AlmanacType):
             t0 = timestamp_to_skyfield_time(almanac_obj.time_ts,t0)
             t1 = timestamp_to_skyfield_time(almanac_obj.time_ts,t1)
             # find event
-            if attr.endswith('aphelion') or 'apogee' in attr or 'new' in attr:
+            if attr.endswith('aphelion') or 'apogee' in attr or 'new' in attr or 'northern' in attr:
                 t, v = find_maxima(t0, t1, func)
             else:
                 t, v = find_minima(t0, t1, func)
@@ -1746,7 +1759,8 @@ class SkyfieldMaintenanceThread(threading.Thread):
         pck_files = alm_conf_dict.get(
             'planetaryconstants',
             [
-                'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011_n0066.tpc',
+                'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc',
+                #'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011_n0066.tpc',
                 'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/moon_assoc_me.tf',
                 'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/moon_assoc_pa.tf',
                 'https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/moon_de440_250416.tf',
@@ -2335,15 +2349,10 @@ class LiveService(StdService):
                                     engine.stn_info.longitude_f,
                                     elevation_m=self.altitude)
         # observation types
-        weewx.units.obs_group_dict.setdefault('solarAltitude','group_angle')
-        weewx.units.obs_group_dict.setdefault('solarAzimuth','group_direction')
         weewx.units.obs_group_dict.setdefault('solarTime','group_direction')
         weewx.units.obs_group_dict.setdefault('solarPath','group_percent')
-        weewx.units.obs_group_dict.setdefault('solarRightAscension','group_direction')
-        weewx.units.obs_group_dict.setdefault('solarDeclination','group_angle')
-        weewx.units.obs_group_dict.setdefault('solarDistance','group_distance')
         weewx.units.obs_group_dict.setdefault('lunarTime','group_direction')
-        for _, prefix in self.additional_bodies:
+        for _, prefix in [('sun','solar')]+self.additional_bodies:
             weewx.units.obs_group_dict.setdefault('%sAltitude' % prefix,'group_angle')
             weewx.units.obs_group_dict.setdefault('%sAzimuth' % prefix,'group_direction')
             weewx.units.obs_group_dict.setdefault('%sRightAscension' % prefix,'group_direction')
@@ -2408,7 +2417,7 @@ class LiveService(StdService):
         self.calc_almanac(event.record,True)
     
     def calc_almanac(self, packet, archive):
-        """ calculate solarAzimuth, solarAltitude, solarPath """
+        """ calculate astronomical values as observation types """
         global ephemerides
         # Do nothing until the Skyfield almanac ist initialized.
         if ephemerides is None: return
@@ -2484,7 +2493,8 @@ class LiveService(StdService):
             # additional heavenly bodies according to configuration
             for body, prefix in self.additional_bodies:
                 eph = ephemerides[body]
-                # apparent position of the Moon in respect to the observer's location
+                # apparent position of the body in respect to the observer's
+                # location
                 position = observer.at(ti).observe(eph).apparent()
                 # the body's altitude and azimuth
                 if self.with_altaz:
