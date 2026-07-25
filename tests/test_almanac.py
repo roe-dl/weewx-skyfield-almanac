@@ -15,6 +15,7 @@ sys.path.append('bin/user')
 import weewx
 import weewx.almanac
 import weewx.units
+import weeutil
 import skyfieldalmanac
 
 from skyfield.earthlib import refraction, refract
@@ -34,12 +35,14 @@ CONFIG = configobj.ConfigObj({
   'Almanac': {
     'Skyfield': {
       'update_interval':0,
-      'ephemeris':['de440s.bsp','https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/mar097.bsp']
+      'ephemeris':['de440s.bsp','https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/mar097.bsp'],
+      'restrict_to_current_day':False
     }
   }
 })
 
 default_formatter = weewx.units.get_default_formatter()
+weeutil.logger.setup("weewx-skyfield-almanac", CONFIG)
 
 srv = skyfieldalmanac.SkyfieldService(None,CONFIG)
 del weewx.almanac.almanacs[-1]

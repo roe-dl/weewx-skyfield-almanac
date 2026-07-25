@@ -64,6 +64,8 @@ available if you have special requirements.
         live_data_bodies = 
         # disable the built-in PyEphem almanac (optional)
         disable_pyephem = false
+        # restrict search to current day for `rise`, `set`, and `transit`
+        restrict_to_current_day = false
         [[[EarthSatellites]]]
             file_name1 = url1
             file_name2 = url2
@@ -116,6 +118,8 @@ available if you have special requirements.
   Sometimes enabling both the Skyfield and PyEphem almanac produces 
   special errors if the attribute or heavenly body is not available.
   In those cases setting this option may help.
+* `restrict_to_current_day`: Restrict search to the day, `$almananac` is
+  bount to for `rise`, `set`, and `transit`
 * `[[[EarthSatellites]]]`: This section contains earth satellite data files
   to load. Each entry in the section contains of a file name and an URL
   The file name is used when saved to disk. You can find such files

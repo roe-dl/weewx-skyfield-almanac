@@ -59,3 +59,5 @@
 * events of lunar standstill
 0.7
 * move configuration and customization guides to separate files
+* fix moonrise and moonset horizon bug
+* change timespan for `rise`, `set`, `transit`, `antitransit`

@@ -21,7 +21,7 @@ def loader():
 class SkyfieldInstaller(ExtensionInstaller):
     def __init__(self):
         super(SkyfieldInstaller, self).__init__(
-            version="0.6",
+            version="0.7",
             name='Skyfield almanac',
             description='almanac extension using Skyfield mdule',
             author="Johanna Roedenbeck",
@@ -42,7 +42,8 @@ class SkyfieldInstaller(ExtensionInstaller):
                         'update_interval':'31557600',
                         'enable_live_data':'true',
                         'live_data_observations':['altitude','azimuth'],
-                        'live_data_bodies':['sun']
+                        'live_data_bodies':['sun'],
+                        'restrict_to_current_day':False
                     }
                 }
             },

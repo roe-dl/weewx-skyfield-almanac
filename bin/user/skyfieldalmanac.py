@@ -71,7 +71,7 @@
     
 """
 
-VERSION = "0.6"
+VERSION = "0.7"
 
 # IERS timescale file as hardcoded in Skyfield
 TIMESCALE_FILE = 'finals2000A.all'
@@ -681,6 +681,10 @@ class SkyfieldAlmanacType(AlmanacType):
         'descending_node_moon':(0,),
     }
 
+    def __init__(self, restrict_to_curr_day=False):
+        super(SkyfieldAlmanacType, self).__init__()
+        self.restrict_to_curr_day = restrict_to_curr_day
+    
     @property
     def hasExtras(self):
         """ Skyfield provides extras. 
@@ -955,7 +959,8 @@ class SkyfieldAlmanacType(AlmanacType):
             # The attribute is a heavenly body (such as 'sun', or 'venus').
             # Bind the almanac and the heavenly body together and return as a
             # SkyfieldAlmanacBinder
-            return SkyfieldAlmanacBinder(almanac_obj, attr.lower())
+            return SkyfieldAlmanacBinder(almanac_obj, attr.lower(),
+                                                     self.restrict_to_curr_day)
         elif (attr.lower()+'_barycenter' in ephemerides and 
              attr in {'mars','jupiter','saturn','uranus','neptune','pluto'}):
             # The attribute is a heavenly body (such as 'jupiter'), but its
@@ -963,22 +968,24 @@ class SkyfieldAlmanacType(AlmanacType):
             # Bind the almanac and the heavenly body together and return as a
             # SkyfieldAlmanacBinder
             return SkyfieldAlmanacBinder(almanac_obj,
-                                                    attr.lower()+'_barycenter')
+                         attr.lower()+'_barycenter', self.restrict_to_curr_day)
         elif '_' in attr and attr.lower().split('_')[0] in satcatalogues:
             # The attribute points to an Earth satellite that is not included
             # in `ephemerides`. Bind it to get the right exception.
-            return SkyfieldAlmanacBinder(almanac_obj, attr.lower())
+            return SkyfieldAlmanacBinder(almanac_obj, attr.lower(),
+                                                     self.restrict_to_curr_day)
         elif attr.startswith('HIP') and attr[3:].isdigit():
             # The attribute is a star. Bind the almanac and the star together
             # and return as a SkyfieldAlmanacBinder.
-            return SkyfieldAlmanacBinder(almanac_obj, attr)
+            return SkyfieldAlmanacBinder(almanac_obj, attr, 
+                                                     self.restrict_to_curr_day)
         elif attr.capitalize() in starids:
             # PyEphem maintains a list of 115 wellknown stars by name.
             # To replace PyEphem, name resolution for star names is required
             # here, too. Unfortunately the Hipparcos catalog does not contain
             # names at all.
             return SkyfieldAlmanacBinder(almanac_obj,
-                                          'HIP%s' % starids[attr.capitalize()])
+               'HIP%s' % starids[attr.capitalize()], self.restrict_to_curr_day)
         # `attr` is not provided by this extension. So raise an exception.
         raise weewx.UnknownType(attr)
 
@@ -987,10 +994,11 @@ class SkyfieldAlmanacBinder:
     """This class binds the observer properties held in Almanac, with the 
     heavenly body to be observed."""
 
-    def __init__(self, almanac, heavenly_body):
+    def __init__(self, almanac, heavenly_body, restrict_to_curr_day=False):
         self.almanac = almanac
         self.heavenly_body = heavenly_body
         self.use_center = False
+        self.restrict_to_curr_day = restrict_to_curr_day
 
     def __call__(self, use_center=False):
         self.use_center = use_center
@@ -1303,7 +1311,8 @@ class SkyfieldAlmanacBinder:
             # get the event within the day the timestamp is in
             timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
             t0 = timestamp_to_skyfield_time(timespan[0])
-            t1 = timestamp_to_skyfield_time(timespan[1])
+            t1 = timestamp_to_skyfield_time(timespan[1],
+                    0 if self.restrict_to_curr_day or 'day' in attr else 86400)
             evt = attr
             idx = 0
         else:
@@ -1497,7 +1506,7 @@ class SkyfieldAlmanacBinder:
                             not self.use_center):
                         _, _, distance = observer.at(t).observe(body).apparent().hadec()
                         #horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
-                        horizon = self.almanac.horizon-MEAN_MOON_RADIUS_KM/distance.km*RAD2DEG
+                        horizon = self.almanac.horizon-MEAN_MOON_RADIUS_KM/distance.km[idx]*RAD2DEG
                         horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
                         t, y = almanac.find_risings(observer, body, t0, t1, horizon_degrees=horizon)
                     y = len(y)>=1 and y[idx]
@@ -1520,7 +1529,7 @@ class SkyfieldAlmanacBinder:
                             not self.use_center):
                         _, _, distance = observer.at(t).observe(body).apparent().hadec()
                         #horizon = self.almanac.horizon-almanac._moon_radius_m/distance.m*RAD2DEG
-                        horizon = self.almanac.horizon-MEAN_MOON_RADIUS_KM/distance.km*RAD2DEG
+                        horizon = self.almanac.horizon-MEAN_MOON_RADIUS_KM/distance.km[idx]*RAD2DEG
                         horizon -= refraction(horizon,self.almanac.temperature,self.almanac.pressure)
                         t, y = almanac.find_settings(observer, body, t0, t1, horizon_degrees=horizon)
                     y = len(y)>=1 and y[idx]
@@ -2257,8 +2266,10 @@ class SkyfieldService(StdService):
                 loginf('waiting for ephemerides to be loaded')
                 self.skyfield_thread.join()
                 loginf('loading ephemerides finished')
+            # restrict `rise`, `set`, and `transit` to current day
+            restrict_to_curr_day = alm_conf_dict.get('restrict_to_current_day',False)
             # instantiate the Skyfield almanac
-            self.skyfield_almanac = SkyfieldAlmanacType()
+            self.skyfield_almanac = SkyfieldAlmanacType(restrict_to_curr_day)
             # add to the list of almanacs
             almanacs.insert(0,self.skyfield_almanac)
             logdbg("%s started" % self.__class__.__name__)
