@@ -57,3 +57,5 @@
 * `solarDistance`, `lunarDistance` etc. observation types #24
 * separate documentation file for live LOOP data augmentation
 * events of lunar standstill
+0.7
+* move configuration and customization guides to separate files
