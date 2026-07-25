@@ -109,8 +109,9 @@ pip install requests
 ## Configuration instructions
 
 There is no need to configure anything, but there are some tuning options
-available if you have special requirements. See the
-[configuration guide](./Configuration.md) for details.
+available if you have special requirements. See the customization guide,
+section
+[configuration](./Customization.md#configuration) for details.
 
 ## Usage
 
