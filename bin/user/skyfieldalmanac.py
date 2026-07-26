@@ -1295,16 +1295,22 @@ class SkyfieldAlmanacBinder:
         previous = attr.startswith('previous_')
         next = attr.startswith('next_')
         
+        # Note: The distance between 2 moonrise (or 2 moonsets) is more than
+        #       24 hours and varies a lot. So we have to search at least
+        #       26 hours to be sure to find the previous or next event.
+        #       For the day timespan another hour is added for the event
+        #       of daylight savings time switch.
+        
         if previous:
             # get the last event before the given timestamp
-            t0 = timestamp_to_skyfield_time(self.almanac.time_ts,-86400)
+            t0 = timestamp_to_skyfield_time(self.almanac.time_ts,-93600)
             t1 = timestamp_to_skyfield_time(self.almanac.time_ts)
             evt = attr[9:]
             idx = -1
         elif next:
             # get the next event after the given timestamp
             t0 = timestamp_to_skyfield_time(self.almanac.time_ts)
-            t1 = timestamp_to_skyfield_time(self.almanac.time_ts,86400)
+            t1 = timestamp_to_skyfield_time(self.almanac.time_ts,93600)
             evt = attr[5:]
             idx = 0
         elif attr in {'rise','set','transit','antitransit','day_max_alt','day_max_alt_time','day_max_altitude'}:
@@ -1312,7 +1318,7 @@ class SkyfieldAlmanacBinder:
             timespan = weeutil.weeutil.archiveDaySpan(self.almanac.time_ts)
             t0 = timestamp_to_skyfield_time(timespan[0])
             t1 = timestamp_to_skyfield_time(timespan[1],
-                    0 if self.restrict_to_curr_day or 'day' in attr else 86400)
+                    0 if self.restrict_to_curr_day or 'day' in attr else 10800)
             evt = attr
             idx = 0
         else:

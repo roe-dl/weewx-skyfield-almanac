@@ -61,3 +61,4 @@
 * move configuration and customization guides to separate files
 * fix moonrise and moonset horizon bug
 * change timespan for `rise`, `set`, `transit`, `antitransit`
+* fix timespan for `moon.next_*` and `moon.previous_*`
