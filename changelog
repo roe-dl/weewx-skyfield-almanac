@@ -62,3 +62,4 @@
 * fix moonrise and moonset horizon bug
 * change timespan for `rise`, `set`, `transit`, `antitransit`
 * fix timespan for `moon.next_*` and `moon.previous_*`
+* save language files to sub-directory as introduced in WeeWX 5.3.0

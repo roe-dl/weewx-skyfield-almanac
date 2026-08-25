@@ -5,10 +5,26 @@
 import os
 import os.path
 import stat
+import io
 import configobj
 from weecfg.extension import ExtensionInstaller
 from weeutil.config import conditional_merge
 import weeutil.weeutil
+
+EMPTY_CONFIG = """
+###############################################################################
+#  Localization File --- WeeWX Skyfield almanac extension                     #
+# Copyright (c) 2018-2021 Tom Keffer <tkeffer@gmail.com> and Matthew Wall     #
+# Copyright (c) 2021 Johanna Karen Roedenbeck                                 #
+# See the file LICENSE.txt for your rights.                                   #
+###############################################################################
+
+[Labels]
+    [[Generic]]
+[Almanac]
+[Texts]
+    [[Astronomical]]
+"""
 
 def get_file_owner(fn):
     uid = os.getuid()
@@ -84,6 +100,9 @@ class SkyfieldInstaller(ExtensionInstaller):
                 lang_dir = os.path.join(skin_dir,skin_pth,'lang') if skin_pth else None
                 if lang_dir and os.path.isdir(lang_dir):
                     engine.printer.out('processing skin %s' % skin)
+                    lang_dir = os.path.join(lang_dir,'lang-skyfield-almanac')
+                    if not os.path.isdir(lang_dir):
+                        os.mkdir(lang_dir)
                     for fn in os.listdir(extension_lang_dir):
                         if fn.endswith('.conf') and fn!='lang.conf':
                             src_fn = os.path.join(extension_lang_dir,fn)
@@ -95,12 +114,10 @@ class SkyfieldInstaller(ExtensionInstaller):
                             # The standardized language code for czech is 
                             # 'cs', but in WeeWX it is 'cz'. Both are tried.
                             if fn=='cs.conf':
-                                if os.path.isfile(dest_fn):
-                                    self._update_lang_file(engine, skin_pth, src_fn, dest_fn)
+                                self._update_lang_file(engine, skin_pth, src_fn, dest_fn)
                                 dest_fn = os.path.join(lang_dir,'cz.conf')
                             # check if the target file exists and update it
-                            if os.path.isfile(dest_fn):
-                                self._update_lang_file(engine, skin_pth, src_fn, dest_fn)
+                            self._update_lang_file(engine, skin_pth, src_fn, dest_fn)
         # Download Ephemerides
         if self.is_download_ephemeris:
             data_dir = engine.config_dict.get('DatabaseTypes',
@@ -129,7 +146,7 @@ class SkyfieldInstaller(ExtensionInstaller):
         """ Update language definition files """
         # get the original language file
         try:
-            config = configobj.ConfigObj(dest_fn,encoding='utf-8',interpolation=False)
+            config = configobj.ConfigObj(dest_fn,encoding='utf-8',interpolation=False,create_empty=True)
         except configobj.ConfigObjError as e:
             engine.printer.out('cannot merge to %s: %s %s' % (dest_fn,e.__class__.__name__,e))
             return
@@ -139,6 +156,10 @@ class SkyfieldInstaller(ExtensionInstaller):
         if key:
             engine.printer.out('cannot merge to %s: problematic key "%s"' % (dest_fn,key))
             return
+        # If the file is empty, add an [Almanac] section
+        if not config:
+            config = configobj.ConfigObj(io.StringIO(EMPTY_CONFIG),encoding='utf-8',interpolation=False)
+            config.filename = dest_fn
         # get the Skyfield additions
         to_be_merged = configobj.ConfigObj(src_fn,encoding='utf-8',interpolation=False)
         # merge the additions to the localization config
