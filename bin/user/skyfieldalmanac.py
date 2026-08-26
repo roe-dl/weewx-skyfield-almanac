@@ -2273,7 +2273,7 @@ class SkyfieldService(StdService):
                 self.skyfield_thread.join()
                 loginf('loading ephemerides finished')
             # restrict `rise`, `set`, and `transit` to current day
-            restrict_to_curr_day = alm_conf_dict.get('restrict_to_current_day',False)
+            restrict_to_curr_day = weeutil.weeutil.to_bool(alm_conf_dict.get('restrict_to_current_day',False))
             # instantiate the Skyfield almanac
             self.skyfield_almanac = SkyfieldAlmanacType(restrict_to_curr_day)
             # add to the list of almanacs
